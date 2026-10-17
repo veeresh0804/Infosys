@@ -1,0 +1,65 @@
+
+[
+  {
+    "id": "KB001",
+    "category": "pest_control",
+    "keywords": ["pest", "insect", "rice", "paddy", "bug"],
+    "crop": "rice",
+    "question": "How can I protect my rice crop from pests?",
+    "answer": "Monitor the crop regularly for pest damage and identify the pest before choosing a control method. Maintain field sanitation and consider suitable non-chemical and biological controls. Use pesticides only when necessary and follow locally recommended guidance and the product label.",
+    "source": "ICAR",
+    "source_url": "https://www.icar.gov.in/en/integrated-pest-management-sustainable-approach-responsible-pest-management"
+  },
+  {
+    "id": "KB002",
+    "category": "soil_health",
+    "keywords": ["soil", "fertilizer", "fertiliser", "nutrient", "soil test"],
+    "crop": "general",
+    "question": "How can I improve soil health?",
+    "answer": "Start with a soil test to understand nutrient levels and soil conditions. Use the results to guide fertilizer application, add suitable organic matter, and follow recommendations for your crop and region.",
+    "source": "Farmers Portal, Government of India",
+    "source_url": "https://www.india.gov.in/category/agriculture-rural-environment/subcategory/research-marketing/details/farmers-portal"
+  },
+  {
+    "id": "KB003",
+    "category": "crop_management",
+    "keywords": ["crop", "farming", "cultivation", "irrigation", "water"],
+    "crop": "general",
+    "question": "How can I manage my crops better?",
+    "answer": "Choose crop varieties suitable for your region and season. Monitor soil moisture, manage weeds, inspect crops regularly, and follow locally recommended sowing and irrigation practices.",
+    "source": "ICAR",
+    "source_url": "https://icar.org.in/en/kharif-agro-advisory-farmers"
+  },
+  {
+    "id": "KB004",
+    "category": "government_schemes",
+    "keywords": ["scheme", "subsidy", "government", "farmer benefit"],
+    "crop": "general",
+    "question": "Where can I find agricultural government schemes?",
+    "answer": "Check official government agriculture portals for current schemes, eligibility criteria, required documents, and application procedures. Eligibility and benefits depend on the specific scheme and its current rules.",
+    "source": "Government of India",
+    "source_url": "https://www.india.gov.in/my-government/schemes"
+  },
+  
+{
+  "id": "KB005",
+  "category": "crop_management",
+  "question": "How can I grow tomatoes?",
+  "answer": "To grow tomatoes, choose a sunny location with well-drained soil. Prepare the soil with mature compost and select a suitable tomato variety for your climate. Start with healthy seedlings and transplant them according to the variety's recommended spacing. Water consistently near the soil, avoiding prolonged waterlogging. Use a stake or support cage for plants that need support. Apply fertilizer based on soil-test recommendations, monitor leaves and fruits regularly for pests and diseases, and remove affected plant parts when appropriate. Harvest tomatoes when they reach the maturity and color appropriate for the variety. For local planting dates, varieties, spacing, and pest-control recommendations, consult your nearest agricultural extension office.",
+  "source": "ICAR agricultural guidance",
+  "source_url": "https://icar.org.in/",
+  "keywords": [
+    "tomato",
+    "tomatoes",
+    "grow tomatoes",
+    "growing tomatoes",
+    "tomato cultivation",
+    "plant tomatoes",
+    "tomato plant",
+    "tomato farming",
+    "seedlings",
+    "crop management"
+  ]
+}
+
+]
