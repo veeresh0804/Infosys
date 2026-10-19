@@ -52,14 +52,11 @@ class AgriculturalNERService:
     def _load_hf_pipeline(self):
         if self._pipeline is not None or self._hf_loaded:
             return
-        # Only attempt automatic download if HF_TOKEN is configured or explicitly enabled
-        if not settings.HF_TOKEN:
-            self._hf_loaded = True
-            return
         try:
             from transformers import pipeline
             logger.info(f"Loading Hugging Face NER pipeline ({self.model_name})...")
-            self._pipeline = pipeline("ner", model=self.model_name, aggregation_strategy="simple")
+            token = settings.HF_TOKEN.strip() if (settings.HF_TOKEN and settings.HF_TOKEN.strip()) else None
+            self._pipeline = pipeline("ner", model=self.model_name, aggregation_strategy="simple", token=token)
             self._hf_loaded = True
             logger.info("HF NER pipeline loaded successfully.")
         except Exception as e:

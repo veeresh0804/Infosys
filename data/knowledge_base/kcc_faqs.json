@@ -58,5 +58,66 @@
     "management": "Pheromone traps @ 12 traps/ha for mass trapping. Spray Profenofos 50% EC @ 2 ml/L or Chlorpyrifos 20% EC @ 2.5 ml/L or Thiodicarb 75% WP @ 2 g/L during peak emergence. For organic control, spray Neem seed kernel extract (NSKE 5%) @ 50 g/L.",
     "preventive_measures": "Maintain a 'closed season' by terminating crop by December-January to prevent pest carryover. Avoid rationing.",
     "source": "Kisan Call Centre Advisory / CICR Nagpur Integrated Pest Management Protocol"
+  },
+  {
+    "id": "kcc-disease-rice-blast-06",
+    "crop": "Paddy (Rice)",
+    "category": "disease_management",
+    "query": "How to control Rice Blast (Magnaporthe oryzae) showing spindle-shaped spots with grey centres on leaves and rotten neck?",
+    "query_hi": "धान में झुलसा रोग (राइस ब्लास्ट) की रोकथाम कैसे करें?",
+    "query_kn": "ಭತ್ತದಲ್ಲಿ ಕುತ್ತಿಗೆ ರೋಗ (ಬ್ಲಾಸ್ಟ್ ರೋಗ) ನಿಯಂತ್ರಿಸುವುದು ಹೇಗೆ?",
+    "symptoms": "Spindle-shaped or eye-shaped lesions with ash-grey centers and dark brown margins on leaves; blackening and rotting of neck node causing falling of panicles.",
+    "management": "Spray Tricyclazole 75% WP @ 0.6 g/L (or 300-400 g/ha) or Isoprothiolane 40% EC @ 1.5 ml/L or Kasugamycin 3% SL @ 2.0 ml/L at first symptom. Spray at boot leaf and repeat at 10% flowering if weather is cloudy.",
+    "preventive_measures": "Avoid excessive doses of nitrogenous fertilizers; split nitrogen into 3-4 applications. Seed treatment with Carbendazim 50% WP @ 2 g/kg seed.",
+    "source": "Kisan Call Centre (KCC) Query Logs / ICAR-IIRR Rice Pathology"
+  },
+  {
+    "id": "kcc-disease-tomato-blight-07",
+    "crop": "Tomato",
+    "category": "disease_management",
+    "query": "How to treat Early Blight and Late Blight in tomato causing concentric rings and black rotting on leaves and fruits?",
+    "query_hi": "टमाटर में अगेती और पछेती झुलसा (ब्लाइट) का इलाज कैसे करें?",
+    "query_kn": "ಟೊಮೆಟೊ ಬೆಳೆಯಲ್ಲಿ ಅಂಗಮಾರಿ (ಬ್ಲೈಟ್) ರೋಗ ನಿಯಂತ್ರಣ ಹೇಗೆ?",
+    "symptoms": "Early Blight: Target-board concentric brown rings on older leaves. Late Blight: Water-soaked irregular dark brown lesions with white downy fungal growth on lower surface during humid weather.",
+    "management": "Preventive: Spray Mancozeb 75% WP @ 2.5 g/L or Chlorothalonil 75% WP @ 2 g/L. Curative (at onset): Spray Metalaxyl 8% + Mancozeb 64% WP @ 2.5 g/L or Cymoxanil 8% + Mancozeb 64% WP @ 2 g/L or Azoxystrobin 23% SC @ 1 ml/L.",
+    "preventive_measures": "Ensure proper row spacing (60x45 cm) and avoid overhead sprinkler irrigation. Remove lower infected leaves and destroy.",
+    "source": "KCC Technical Advisory / ICAR-IIHR Vegetable Pathology Division"
+  },
+  {
+    "id": "kcc-disease-groundnut-tikka-08",
+    "crop": "Groundnut (Peanut)",
+    "category": "disease_management",
+    "query": "What is the control for Tikka disease (Cercospora leaf spot) in groundnut showing dark circular spots with yellow halo?",
+    "query_hi": "मूंगफली में टिक्का रोग (पत्ती धब्बा) का नियंत्रण कैसे करें?",
+    "query_kn": "ಕಡಲೆಕಾಯಿ ಬೆಳೆಯಲ್ಲಿ ಟಿಕ್ಕಾ ಎಲೆಚುಕ್ಕೆ ರೋಗದ ನಿಯಂತ್ರಣ ಹೇಗೆ?",
+    "symptoms": "Early leaf spot: Circular reddish-brown to dark spots surrounded by prominent yellow halo. Late leaf spot: Smaller, darker black spots without prominent yellow halo, causing premature defoliation.",
+    "management": "Spray Hexaconazole 5% SC @ 2 ml/L or Tebuconazole 25.9% EC @ 1 ml/L or Carbendazim 12% + Mancozeb 63% WP (Saaf) @ 2 g/L in 500 liters water/ha. Repeat after 15 days.",
+    "preventive_measures": "Crop rotation with non-host crops (cereals). Treat seeds with Trichoderma viride @ 4 g/kg or Thiram @ 3 g/kg.",
+    "source": "Kisan Call Centre Advisory / ICAR-DGR Junagadh"
+  },
+  {
+    "id": "kcc-pest-chilli-thrips-09",
+    "crop": "Chilli",
+    "category": "pest_control",
+    "query": "Chilli leaf margins are curling upwards and boat-shaped with stunted flowering. How to control thrips and mites?",
+    "query_hi": "मिर्च में पत्ता मरोड़, थ्रिप्स (चंपा) और माइट्स की रोकथाम कैसे करें?",
+    "query_kn": "ಮೆಣಸಿನಕಾಯಿ ಬೆಳೆಯಲ್ಲಿ ನುಸಿ ಮತ್ತು ಹೇನು (ಥ್ರಿಪ್ಸ್) ನಿಯಂತ್ರಣ ಹೇಗೆ?",
+    "symptoms": "Upward curling of leaves, crinkling, brittle texture caused by Thrips (Scirtothrips dorsalis); downward curling into inverted boat shape caused by yellow mites (Polyphagotarsonemus latus).",
+    "management": "For Thrips (upward curl): Spray Fipronil 5% SC @ 1.5-2.0 ml/L or Spinetoram 11.7% SC @ 0.9 ml/L or Acetamiprid 20% SP @ 0.3 g/L. For Mites (downward curl): Spray Spiromesifen 22.9% SC @ 1.0 ml/L or Fenpyroximate 5% EC @ 1.5 ml/L. Use Blue sticky traps @ 25/ha for thrips monitoring.",
+    "preventive_measures": "Intercrop with 2 rows of maize or sunflower as barrier crops. Spray Neem oil (10,000 ppm) @ 2 ml/L at early vegetative stage.",
+    "source": "ICAR-IISR Chilli Protection Guide / Kisan Call Centre Expert Panel"
+  },
+  {
+    "id": "kcc-nutrient-zinc-chlorosis-10",
+    "crop": "Paddy / Wheat / Maize",
+    "category": "nutrient_management",
+    "query": "Leaves are turning yellow/whitish with rusty brown spots and stunted growth. How to correct Zinc deficiency?",
+    "query_hi": "फसलों में जिंक (जस्ता) की कमी और खैरा रोग के लक्षण और उपाय क्या हैं?",
+    "query_kn": "ಬೆಳೆಗಳಲ್ಲಿ ಸತುವಿನ (ಜಿಂಕ್) ಕೊರತೆ ಲಕ್ಷಣಗಳು ಮತ್ತು ಪರಿಹಾರವೇನು?",
+    "symptoms": "Interveinal chlorosis on young leaves, bronze or rusty brown pigmentation, reduced tillering, delayed flowering ('Khaira' disease in rice).",
+    "management": "Foliar spray: Dissolve Zinc sulfate heptahydrate (21% Zn) @ 5 g + unslaked lime (chuna) @ 2.5 g (or urea @ 10 g) in 1 liter of water. Spray twice at 10-12 days interval on standing crop. For soil correction: Apply Zinc sulfate @ 25 kg/ha before sowing.",
+    "preventive_measures": "Conduct Soil Health Card test before sowing. Avoid combining high doses of phosphatic fertilizer (DAP) with zinc directly at the same time.",
+    "source": "Kisan Call Centre Advisory / ICAR-Indian Institute of Soil Science (IISS) Bhopal"
   }
 ]
+

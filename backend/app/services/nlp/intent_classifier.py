@@ -55,14 +55,11 @@ class IntentClassifierService:
         if self._pipeline is not None or self._hf_available:
             return
 
-        if not settings.HF_TOKEN:
-            self._hf_available = False
-            return
-
         try:
             from transformers import pipeline
             logger.info(f"Loading Hugging Face intent classification pipeline ({self.model_name})...")
-            self._pipeline = pipeline("zero-shot-classification", model=self.model_name)
+            token = settings.HF_TOKEN.strip() if (settings.HF_TOKEN and settings.HF_TOKEN.strip()) else None
+            self._pipeline = pipeline("zero-shot-classification", model=self.model_name, token=token)
             self._hf_available = True
             logger.info("Hugging Face intent pipeline loaded successfully.")
         except Exception as e:
