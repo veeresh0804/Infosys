@@ -29,6 +29,8 @@ export interface QueryResponse {
   is_low_confidence: boolean;
   flag_reason?: string;
   is_fallback?: boolean;
+  engine_used?: string;
+  has_unverified_sources?: boolean;
   short_answer_canonical?: string;
   short_answer_translated?: string;
   retrieved_chunks: RetrievedChunk[];
@@ -85,6 +87,8 @@ export const api = {
     text?: string;
     language?: string;
     audioBase64?: string;
+    audioMime?: string;
+    audioFilename?: string;
   }): Promise<QueryResponse> {
     const res = await fetch(`${API_BASE}/api/rag/query`, {
       method: "POST",
@@ -93,12 +97,23 @@ export const api = {
         session_id: params.sessionId,
         text: params.text,
         language: params.language,
-        audio_base64: params.audioBase64
+        audio_base64: params.audioBase64,
+        audio_mime: params.audioMime,
+        audio_filename: params.audioFilename
       })
     });
     if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Query failed: ${res.status} - ${err}`);
+      let errData: any = null;
+      try {
+        errData = await res.json();
+      } catch {
+        // text fallback
+      }
+      const msg = errData?.message || errData?.detail || `Query failed with status ${res.status}`;
+      const error = new Error(msg);
+      (error as any).status = res.status;
+      (error as any).data = errData;
+      throw error;
     }
     return res.json();
   },

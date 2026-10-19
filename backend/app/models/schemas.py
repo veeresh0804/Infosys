@@ -12,12 +12,12 @@ class SessionModel(Base):
     __tablename__ = "sessions"
 
     session_id = Column(String(64), primary_key=True, index=True)
-    user_id = Column(String(64), nullable=True, default="default_farmer")
-    preferred_language = Column(String(10), default="hi")  # "hi", "kn", "en"
-    state = Column(String(64), nullable=True, default="Karnataka")
-    district = Column(String(64), nullable=True, default="Bengaluru Rural")
-    landholding_acres = Column(Float, nullable=True, default=2.5)
-    crops_grown = Column(JSON, nullable=True, default=lambda: ["Tomato", "Paddy"])
+    user_id = Column(String(64), nullable=True, default=None)
+    preferred_language = Column(String(10), default="en")  # neutral starting language: "hi", "kn", "en"
+    state = Column(String(64), nullable=True, default=None)
+    district = Column(String(64), nullable=True, default=None)
+    landholding_acres = Column(Float, nullable=True, default=None)
+    crops_grown = Column(JSON, nullable=True, default=list)  # list of crops
     history = Column(JSON, nullable=True, default=list)  # list of {role, text, canonical_text, timestamp}
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -75,15 +75,15 @@ class SessionUpdate(BaseModel):
 
 class SessionResponse(BaseModel):
     session_id: str
-    user_id: Optional[str]
-    preferred_language: str
-    state: Optional[str]
-    district: Optional[str]
-    landholding_acres: Optional[float]
-    crops_grown: List[str]
-    history: List[Dict[str, Any]]
-    created_at: Optional[datetime.datetime]
-    updated_at: Optional[datetime.datetime]
+    user_id: Optional[str] = None
+    preferred_language: str = "en"
+    state: Optional[str] = None
+    district: Optional[str] = None
+    landholding_acres: Optional[float] = None
+    crops_grown: List[str] = Field(default_factory=list)
+    history: List[Dict[str, Any]] = Field(default_factory=list)
+    created_at: Optional[datetime.datetime] = None
+    updated_at: Optional[datetime.datetime] = None
 
 # Speech-to-Text & Text-to-Speech
 class STTResponse(BaseModel):
@@ -113,6 +113,7 @@ class TranslationResponse(BaseModel):
     detected_language: str
     translated_text: str
     engine_used: str
+    translation_failed: bool = False
 
 class IntentEntityRequest(BaseModel):
     text: str  # canonical English text
@@ -137,10 +138,12 @@ class RetrievedChunk(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class QueryPipelineRequest(BaseModel):
-    session_id: Optional[str] = "default-session"
+    session_id: Optional[str] = None
     text: Optional[str] = None
     language: Optional[str] = None  # user specified or auto-detect
     audio_base64: Optional[str] = None  # if voice input is sent
+    audio_mime: Optional[str] = "audio/wav"
+    audio_filename: Optional[str] = "audio.wav"
 
 class QueryPipelineResponse(BaseModel):
     session_id: str
@@ -158,6 +161,8 @@ class QueryPipelineResponse(BaseModel):
     confidence_score: float
     is_low_confidence: bool
     is_fallback: bool = False
+    engine_used: Optional[str] = None
+    has_unverified_sources: bool = False
     flag_reason: Optional[str] = None
     retrieved_chunks: List[RetrievedChunk] = Field(default_factory=list)
     live_data: Optional[Dict[str, Any]] = None

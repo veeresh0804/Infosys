@@ -49,14 +49,26 @@ export default function FarmerPage() {
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const sessionIdRef = useRef("farmer-session-main");
+  const sessionIdRef = useRef<string>("farmer-session-temp");
 
-  // Load language preference and ping backend on mount for sleeping free host warmup
+  // Load random session ID and language preference on mount, sync with backend (Task 3, Task 6)
   useEffect(() => {
+    // Generate or restore random browser session ID (Task 6: never hardcode default-session)
+    let sid = localStorage.getItem("kisan_session_id");
+    if (!sid) {
+      sid = "farmer-" + Math.random().toString(36).substring(2, 9) + "-" + Date.now().toString(36);
+      localStorage.setItem("kisan_session_id", sid);
+    }
+    sessionIdRef.current = sid;
+
     const savedLang = localStorage.getItem("kisan_farmer_lang") as LanguageCode;
-    if (savedLang && (savedLang === "hi" || savedLang === "kn" || savedLang === "en")) {
+    const initialLang = (savedLang && (savedLang === "hi" || savedLang === "kn" || savedLang === "en")) ? savedLang : "hi";
+    if (savedLang) {
       setLang(savedLang);
     }
+
+    // Sync saved language to backend session immediately on load (Task 3)
+    api.updateSession(sid, { preferred_language: initialLang }).catch(() => { });
 
     // Ping /api/health to warm up sleeping free-tier host (e.g. Render 512MB web service)
     const timer = setTimeout(() => setServerWarmingUp(true), 1500);
@@ -194,7 +206,26 @@ export default function FarmerPage() {
     }
   };
 
-  // Start microphone recording
+  function getSupportedAudioMime(): { mime: string; ext: string } {
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
+      return { mime: "audio/webm", ext: "webm" };
+    }
+    const candidateFormats = [
+      { mime: "audio/webm;codecs=opus", ext: "webm" },
+      { mime: "audio/webm", ext: "webm" },
+      { mime: "audio/ogg;codecs=opus", ext: "ogg" },
+      { mime: "audio/mp4", ext: "mp4" },
+      { mime: "audio/wav", ext: "wav" }
+    ];
+    for (const fmt of candidateFormats) {
+      if (MediaRecorder.isTypeSupported(fmt.mime)) {
+        return fmt;
+      }
+    }
+    return { mime: "audio/webm", ext: "webm" };
+  }
+
+  // Start microphone recording with truthful browser-supported MIME format (Task 2)
   const startRecording = async () => {
     stopCurrentAudio();
     setErrorMessage(null);
@@ -203,7 +234,9 @@ export default function FarmerPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
+      const format = getSupportedAudioMime();
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: format.mime });
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -213,13 +246,13 @@ export default function FarmerPage() {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
+        const audioBlob = new Blob(audioChunksRef.current, { type: format.mime });
         stream.getTracks().forEach((track) => track.stop());
 
         const reader = new FileReader();
         reader.onloadend = async () => {
           const base64Audio = (reader.result as string).split(",")[1];
-          await processQuery("", base64Audio);
+          await processQuery("", base64Audio, format.mime, `voice_query.${format.ext}`);
         };
         reader.readAsDataURL(audioBlob);
       };
@@ -243,8 +276,13 @@ export default function FarmerPage() {
     }
   };
 
-  // Process query via backend pipeline
-  const processQuery = async (queryText?: string, audioBase64?: string) => {
+  // Process query via backend pipeline (Task 1: never invent transcripts, speak error on STT failure)
+  const processQuery = async (
+    queryText?: string,
+    audioBase64?: string,
+    audioMime?: string,
+    audioFilename?: string
+  ) => {
     setMicState("thinking");
     setErrorMessage(null);
 
@@ -261,7 +299,9 @@ export default function FarmerPage() {
         sessionId: sessionIdRef.current,
         text: queryText || undefined,
         language: lang,
-        audioBase64
+        audioBase64,
+        audioMime,
+        audioFilename
       });
 
       setCurrentResponse(res);
@@ -304,15 +344,30 @@ export default function FarmerPage() {
     } catch (err: any) {
       console.error("Query pipeline failed:", err);
       setMicState("idle");
-      const netErrMsg = t("err_network");
-      setErrorMessage(netErrMsg);
-      speakErrorMessage(netErrMsg);
+
+      // Task 1: on STT unavailable error, show and speak browser speech message asking farmer to retry or type
+      const isSttError =
+        err?.status === 422 ||
+        err?.status === 503 ||
+        err?.data?.error === "stt_unavailable" ||
+        (err?.message && err.message.toLowerCase().includes("stt"));
+
+      const customMsg = isSttError
+        ? (lang === "hi"
+            ? "आपकी आवाज़ स्पष्ट नहीं सुनाई दी। कृपया दोबारा बोलें या लिखकर पूछें।"
+            : lang === "kn"
+            ? "ನಿಮ್ಮ ಧ್ವನಿ ಸ್ಪಷ್ಟವಾಗಿ ಕೇಳಿಸಲಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಮಾತನಾಡಿ ಅಥವಾ ಟೈಪ್ ಮಾಡಿ."
+            : "Voice input could not be transcribed. Please try speaking again or type your question.")
+        : (err?.message || t("err_network"));
+
+      setErrorMessage(customMsg);
+      speakWithBrowser(customMsg, lang);
       setMessages((prev) => [
         ...prev,
         {
           id: "err-" + Date.now(),
           sender: "assistant",
-          text: netErrMsg
+          text: customMsg
         }
       ]);
     }
@@ -579,11 +634,67 @@ export default function FarmerPage() {
 
           {/* Spoken Answer Text */}
           <div className="farmer-answer-body">
+            {/* Task 9: Notice for answers based on unverified or sample knowledge base records */}
+            {currentResponse?.has_unverified_sources && (
+              <div
+                className="farmer-unverified-warning"
+                style={{
+                  backgroundColor: "#fff3cd",
+                  border: "1px solid #ffeeba",
+                  color: "#856404",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  marginBottom: "12px",
+                  fontSize: "0.92rem",
+                  lineHeight: "1.4"
+                }}
+              >
+                ⚠️{" "}
+                <strong>
+                  {lang === "hi"
+                    ? "नमूना / असत्यापित डेटा:"
+                    : lang === "kn"
+                    ? "ಮಾದರಿ / ಪರಿಶೀಲಿಸದ ಮಾಹಿತಿ:"
+                    : "Sample / Unverified Data:"}
+                </strong>{" "}
+                {lang === "hi"
+                  ? "यह सलाह प्रारंभिक या गैर-सत्यापित रिकॉर्ड पर आधारित है। कृपया स्थानीय KVK या कृषि अधिकारी से पुष्टि करें।"
+                  : lang === "kn"
+                  ? "ಈ ಸಲಹೆಯು ಅಪೂರ್ಣ ಅಥವಾ ಪರಿಶೀಲಿಸದ ದಾಖಲೆಗಳನ್ನು ಆಧರಿಸಿದೆ. ಸ್ಥಳೀಯ KVK ಅನ್ನು ಸಂಪರ್ಕಿಸಿ."
+                  : "This guidance is based on experimental or unverified sources. Please consult your local KVK or Kisan Call Centre before application."}
+              </div>
+            )}
+
             <p className="farmer-answer-text">
               {lastAssistantMessage.isExpanded
                 ? lastAssistantMessage.fullText || lastAssistantMessage.text
                 : lastAssistantMessage.shortText || lastAssistantMessage.text}
             </p>
+
+            {/* Honest Engine & Fallback Labeling (Ground Rule 3) */}
+            {currentResponse && (
+              <div
+                style={{
+                  marginTop: "8px",
+                  fontSize: "0.78rem",
+                  color: "#6c757d",
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap"
+                }}
+              >
+                {currentResponse.engine_used && (
+                  <span style={{ background: "#e9ecef", padding: "2px 8px", borderRadius: "12px" }}>
+                    ⚙️ Engine: {currentResponse.engine_used}
+                  </span>
+                )}
+                {currentResponse.is_fallback && (
+                  <span style={{ background: "#fff3cd", color: "#856404", padding: "2px 8px", borderRadius: "12px" }}>
+                    ⚡ Fallback Mode
+                  </span>
+                )}
+              </div>
+            )}
 
             {lastAssistantMessage.fullText && lastAssistantMessage.fullText.length > 200 && (
               <button

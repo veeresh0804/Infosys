@@ -78,12 +78,10 @@ class WhisperFallbackService:
             except Exception as e:
                 logger.warning(f"OpenAI Whisper fallback failed: {e}")
 
-        # 3. Clearly-labelled Deterministic Mock Fallback
-        logger.warning("[MOCK] Neither Groq nor OpenAI Whisper key configured. Using clearly-labelled fallback mock.")
-        return (
-            "What is the fertilizer schedule for paddy rice in Kharif season?",
-            language,
-            "mock_whisper_fallback"
-        )
+        # 3. Honest failure handling: never invent a transcript
+        logger.warning("No STT engine available (Groq/OpenAI Whisper unconfigured or failed). Raising STTUnavailableError.")
+        from backend.app.exceptions import STTUnavailableError
+        raise STTUnavailableError("No speech-to-text service is currently available. Please type your query or try again later.")
 
 whisper_service = WhisperFallbackService()
+

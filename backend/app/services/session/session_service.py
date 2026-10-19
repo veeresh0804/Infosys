@@ -16,7 +16,7 @@ class SessionService:
     """
 
     async def get_or_create_session(self, session_id: Optional[str], db: AsyncSession) -> SessionModel:
-        sid = session_id.strip() if session_id and session_id.strip() else "default-session"
+        sid = session_id.strip() if session_id and session_id.strip() else f"farmer_{uuid.uuid4().hex[:12]}"
 
         result = await db.execute(select(SessionModel).where(SessionModel.session_id == sid))
         session = result.scalars().first()
@@ -26,11 +26,11 @@ class SessionService:
             session = SessionModel(
                 session_id=sid,
                 user_id="farmer_" + str(uuid.uuid4())[:8],
-                preferred_language="hi",
-                state="Karnataka",
-                district="Bengaluru Rural",
-                landholding_acres=2.5,
-                crops_grown=["Tomato", "Paddy"],
+                preferred_language="en",
+                state=None,
+                district=None,
+                landholding_acres=None,
+                crops_grown=[],
                 history=[]
             )
             db.add(session)
@@ -78,7 +78,8 @@ class SessionService:
             "metadata": metadata or {},
             "timestamp": datetime.datetime.utcnow().isoformat()
         })
-        session.history = current_history
+        # Cap stored history to the last 50 messages to prevent memory/storage bloat
+        session.history = current_history[-50:]
         session.updated_at = datetime.datetime.utcnow()
         await db.commit()
 

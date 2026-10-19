@@ -35,7 +35,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [audioPlayingId, setAudioPlayingId] = useState<string | null>(null);
 
-  const handleSend = async (textToSend?: string, audioBase64?: string) => {
+  const handleSend = async (
+    textToSend?: string,
+    audioBase64?: string,
+    audioMime?: string,
+    audioFilename?: string
+  ) => {
     const text = textToSend !== undefined ? textToSend : inputText;
     if (!text && !audioBase64) return;
 
@@ -55,7 +60,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         sessionId,
         text: text || undefined,
         language: selectedLanguage,
-        audioBase64
+        audioBase64,
+        audioMime,
+        audioFilename
       });
 
       const assistantMsg: ChatMessage = {
@@ -240,7 +247,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         className="chat-input-bar"
       >
         <AudioRecorder
-          onAudioReady={(base64Audio) => handleSend("", base64Audio)}
+          onAudioReady={(base64Audio, mime, filename) => handleSend("", base64Audio, mime, filename)}
           disabled={isLoading}
         />
         <input

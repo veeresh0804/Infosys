@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     QUALITY_CONFIDENCE_THRESHOLD: float = 0.70
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/sessions.db"
 
+    # Security & Admin
+    ADMIN_API_KEY: str = Field(default="dev-admin-token", description="Admin secret token for privileged endpoints")
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",") if origin.strip()]

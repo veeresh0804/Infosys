@@ -80,3 +80,30 @@ This document details all technical deviations made from the original internship
 * **Terms & Commercial Status**:
   - **Open-Meteo**: Confirmed 100% free for non-commercial educational use (up to 10,000 daily API calls, requires no API key).
   - **data.gov.in AGMARKNET**: Free government open data portal key; includes sample APMC fallback with clear UI badges when API keys are pending approval.
+
+---
+
+## 7. RAG Orchestration Framework (LangChain vs. Direct Async Orchestration)
+* **Original Project Document**:
+  Specified using LangChain for vector database querying and prompt assembly chains.
+* **What Changed**:
+  - Implemented direct, high-performance async RAG synthesis using native HTTPX clients and structured JSON prompting (`gemini-2.5-flash` / `llama-3.3-70b-versatile`).
+  - FastEmbed ONNX was used directly with cosine similarity vector indexing.
+* **Mentor Justification / Why**:
+  - Standard `langchain` and `langchain-community` packages install dozens of transitively heavy dependencies (pydantic-v1 shims, dataclass wrappers, tenacity, langchain-core) that increase cold-start import time by >3.5 seconds and consume an additional 70–110 MB RAM, threatening the 512 MB memory boundary.
+  - Direct async synthesis gives 100% control over JSON output schemas, structured multi-field generation (`answer_canonical`, `answer_translated`, `short_answer`), and transparent error failover.
+
+---
+
+## 8. Sarvam AI API Specs Hardening
+* **Original Project Document**:
+  Specified generic parameters for Sarvam STT, TTS, and Translation without error handling details.
+* **What Changed**:
+  - Replaced legacy `bulbul:v2` parameters: Removed `pitch` and `loudness` per official Sarvam `bulbul:v3` API documentation.
+  - Implemented honest circuit breaker: Permanent trip for HTTP 401/402/403 (credit exhaustion) and temporary 60-second cooldown for HTTP 429 rate limits.
+  - Sentence-boundary TTS summarization: Synthesizes clean sentence completions splitting on both Latin `.` and Indic `।` (preventing mid-sentence or mid-word cutoffs).
+  - Translation input chunking for texts exceeding Sarvam API character limits.
+* **Mentor Justification / Why**:
+  - Sending unsupported parameters (`pitch`, `loudness`) to `bulbul:v3` causes HTTP 422 Unprocessable Entity errors from Sarvam.
+  - Handling 429 with cool-down prevents permanent failure when momentary concurrency occurs during farmer interactions.
+

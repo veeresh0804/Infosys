@@ -1,13 +1,16 @@
+import time
 import logging
 import base64
 import hashlib
+import re
 import httpx
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
 # Standard language mapping to Sarvam BCP-47 codes
+# Reference: https://docs.sarvam.ai/api-reference/text-to-speech
 SARVAM_LANG_MAP = {
     "hi": "hi-IN",
     "kn": "kn-IN",
@@ -17,14 +20,22 @@ SARVAM_LANG_MAP = {
     "en-IN": "en-IN",
 }
 
+# Valid Bulbul v3 speakers from Sarvam AI documentation
+# Reference: https://docs.sarvam.ai/api-reference/text-to-speech
+VALID_BULBUL_SPEAKERS = ["shubh", "kavya", "aditya", "priya", "roopa", "rahul", "neha", "shreya"]
+
 class SarvamService:
     """
-    Sarvam AI client for Indic speech-to-text, text-to-speech, and translation.
-    Equipped with:
-      - Circuit breaker on credit exhaustion (HTTP 402/403/429) that logs once and switches to fallbacks
-      - SARVAM_ENABLED toggle for zero-credit local development
-      - SQLite audio caching by hash of (text, language, speaker)
-      - Text length capping to save credits
+    Hardened Sarvam AI client for Indic speech-to-text, text-to-speech, and translation.
+    Conforms to official Sarvam API specifications (https://docs.sarvam.ai):
+      - STT endpoint: https://api.sarvam.ai/speech-to-text (model: saaras:v2 / saaras:v1)
+      - TTS endpoint: https://api.sarvam.ai/text-to-speech (model: bulbul:v3)
+        Parameters: inputs, target_language_code, speaker, pace, speech_sample_rate, enable_preprocessing
+        (Note: 'pitch' and 'loudness' are legacy bulbul:v2 only and omitted here per docs)
+      - Translate endpoint: https://api.sarvam.ai/translate (model: mayura:v1)
+      - Circuit breaker: Permanent trip for 401/402/403/credits exhausted; 60s cooldown for 429
+      - Sentence-boundary TTS summarization (no mid-word truncation)
+      - Translation input chunking for long texts (>900 chars)
     """
 
     def __init__(self):
@@ -32,22 +43,27 @@ class SarvamService:
         self.api_url = settings.SARVAM_API_URL.rstrip("/")
         self.circuit_broken = False
         self.circuit_broken_reason = None
+        self.cooldown_until: Optional[float] = None  # For HTTP 429 rate limit backoff
 
     @property
     def is_configured(self) -> bool:
-        return bool(
-            settings.SARVAM_ENABLED and
-            self.api_key and
-            self.api_key.strip() and
-            not self.api_key.startswith("your_") and
-            not self.circuit_broken
-        )
+        if not (settings.SARVAM_ENABLED and self.api_key and self.api_key.strip() and not self.api_key.startswith("your_")):
+            return False
+        if self.circuit_broken:
+            return False
+        if self.cooldown_until and time.time() < self.cooldown_until:
+            return False
+        return True
 
     def _trip_circuit(self, reason: str):
         if not self.circuit_broken:
             self.circuit_broken = True
             self.circuit_broken_reason = reason
-            logger.error(f"🚨 [CIRCUIT BREAKER] Sarvam AI disabled for rest of session. Reason: {reason}. Switching to free-tier fallbacks.")
+            logger.error(f"🚨 [CIRCUIT BREAKER] Sarvam AI disabled permanently for session. Reason: {reason}. Switching to free fallbacks.")
+
+    def _handle_rate_limit(self, retry_after: int = 60):
+        self.cooldown_until = time.time() + retry_after
+        logger.warning(f"⚠️ [SARVAM 429] Rate limit reached. Cooling down for {retry_after}s until {self.cooldown_until}.")
 
     async def _get_cached_tts(self, audio_hash: str) -> Optional[str]:
         try:
@@ -91,17 +107,16 @@ class SarvamService:
         language_code: Optional[str] = None
     ) -> Tuple[str, str, str]:
         """
-        Transcribe Indic speech using Sarvam Saaras STT API.
-        Returns: (transcript, language_code, engine_used)
+        Transcribes Indic speech using Sarvam Saaras STT API.
+        Reference: https://docs.sarvam.ai/api-reference/speech-to-text
         """
         if not self.is_configured:
-            logger.info(f"Sarvam STT not active (enabled={settings.SARVAM_ENABLED}, broken={self.circuit_broken}). Falling back to secondary STT.")
-            raise RuntimeError("Sarvam STT unavailable or disabled")
+            raise RuntimeError("Sarvam STT unavailable or in cooldown")
 
         sarvam_lang = SARVAM_LANG_MAP.get(language_code or "hi", "hi-IN")
         headers = {"api-subscription-key": self.api_key}
         files = {"file": (filename, audio_bytes, content_type)}
-        data = {"model": "saaras:v1", "language_code": sarvam_lang}
+        data = {"model": "saaras:v2", "language_code": sarvam_lang}
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -113,19 +128,48 @@ class SarvamService:
                 )
                 if response.status_code == 200:
                     res_json = response.json()
-                    transcript = res_json.get("transcript", "")
+                    transcript = res_json.get("transcript", "").strip()
                     detected_lang = res_json.get("language_code", sarvam_lang)
-                    return transcript, detected_lang, "sarvam_saaras"
-                elif response.status_code in [401, 402, 403, 429]:
+                    return transcript, detected_lang, "sarvam_saaras:v2"
+                elif response.status_code == 429:
+                    retry_sec = int(response.headers.get("Retry-After", 60))
+                    self._handle_rate_limit(retry_sec)
+                    raise RuntimeError("Sarvam STT rate limit 429")
+                elif response.status_code in [401, 402, 403]:
                     self._trip_circuit(f"HTTP {response.status_code} - {response.text}")
-                    raise RuntimeError(f"Sarvam STT credit limit reached: {response.status_code}")
+                    raise RuntimeError(f"Sarvam STT permanent authorization/quota error: {response.status_code}")
                 else:
-                    logger.error(f"Sarvam STT error: HTTP {response.status_code} - {response.text}")
-                    raise RuntimeError(f"Sarvam STT failed with status {response.status_code}")
+                    raise RuntimeError(f"Sarvam STT error: HTTP {response.status_code}")
         except Exception as e:
-            if "credit limit" in str(e) or "402" in str(e) or "403" in str(e):
+            if "402" in str(e) or "403" in str(e) or "credit" in str(e).lower():
                 self._trip_circuit(str(e))
             raise e
+
+    def _extract_clean_summary(self, text: str, max_chars: int = 250) -> str:
+        """
+        Extracts whole sentences ending on '.' or '।' (Devanagari danda).
+        Prevents mid-word or mid-sentence truncation for speech synthesis (Task 7).
+        """
+        # Split on sentence boundary characters
+        tokens = re.split(r'([.।\n])', text)
+        sentences = []
+        for i in range(0, len(tokens) - 1, 2):
+            s = (tokens[i] + tokens[i+1]).strip()
+            if s:
+                sentences.append(s)
+
+        if not sentences:
+            return text[:max_chars].strip()
+
+        accumulated = []
+        cur_len = 0
+        for sent in sentences:
+            if cur_len + len(sent) > max_chars and accumulated:
+                break
+            accumulated.append(sent)
+            cur_len += len(sent)
+
+        return " ".join(accumulated).strip() or sentences[0]
 
     async def text_to_speech(
         self,
@@ -134,16 +178,17 @@ class SarvamService:
         speaker: str = "kavya"
     ) -> Tuple[str, str]:
         """
-        Synthesize speech using Sarvam Bulbul TTS API with SQLite caching and length capping.
-        Returns: (base64_audio, engine_used)
+        Synthesizes speech using Sarvam Bulbul TTS API with clean sentence boundary summaries.
+        Reference: https://docs.sarvam.ai/api-reference/text-to-speech
         """
         sarvam_lang = SARVAM_LANG_MAP.get(target_language, "hi-IN")
-        # Cap text to ~250 characters (short farmer summary) to minimize credit consumption
-        capped_text = text[:250].strip()
-        valid_speaker = speaker if speaker in ["kavya", "priya", "roopa", "aditya", "rahul", "shreya", "neha"] else "kavya"
+        valid_speaker = speaker if speaker in VALID_BULBUL_SPEAKERS else "kavya"
+
+        # Extract clean whole sentence summary up to ~250 chars
+        clean_text = self._extract_clean_summary(text, max_chars=250)
 
         # 1. Check SQLite TTS cache
-        audio_hash = hashlib.sha256(f"{capped_text}:{target_language}:{valid_speaker}".encode("utf-8")).hexdigest()
+        audio_hash = hashlib.sha256(f"{clean_text}:{target_language}:{valid_speaker}".encode("utf-8")).hexdigest()
         cached_b64 = await self._get_cached_tts(audio_hash)
         if cached_b64:
             logger.info("🎯 TTS Cache hit (SQLite). Saved Sarvam credits.")
@@ -151,22 +196,21 @@ class SarvamService:
 
         # 2. Check if Sarvam is configured and circuit intact
         if not self.is_configured:
-            logger.info("Sarvam TTS bypassed (disabled or unconfigured). Returning synthetic fallback WAV.")
+            logger.info("Sarvam TTS bypassed (disabled or in cooldown). Returning synthetic fallback WAV.")
             mock_wav = b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80>\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
-            return base64.b64encode(mock_wav).decode("utf-8"), "mock_sarvam_tts"
+            return base64.b64encode(mock_wav).decode("utf-8"), "fallback_browser_speech"
 
+        # Official bulbul:v3 payload schema (pitch & loudness omitted per docs)
         headers = {
             "api-subscription-key": self.api_key,
             "Content-Type": "application/json"
         }
         payload = {
-            "inputs": [capped_text],
+            "inputs": [clean_text],
             "target_language_code": sarvam_lang,
             "speaker": valid_speaker,
-            "pitch": 0,
             "pace": 1.0,
-            "loudness": 1.5,
-            "speech_sample_rate": 8000,
+            "speech_sample_rate": 16000,
             "enable_preprocessing": True,
             "model": "bulbul:v3"
         }
@@ -183,33 +227,32 @@ class SarvamService:
                     audios = res_json.get("audios", [])
                     if audios:
                         b64 = audios[0]
-                        await self._save_cached_tts(audio_hash, capped_text, target_language, valid_speaker, b64)
+                        await self._save_cached_tts(audio_hash, clean_text, target_language, valid_speaker, b64)
                         return b64, "sarvam_bulbul"
                     raise RuntimeError("No audio in Sarvam TTS response")
-                elif response.status_code in [401, 402, 403, 429]:
+                elif response.status_code == 429:
+                    retry_sec = int(response.headers.get("Retry-After", 60))
+                    self._handle_rate_limit(retry_sec)
+                elif response.status_code in [401, 402, 403]:
                     self._trip_circuit(f"HTTP {response.status_code} - {response.text}")
-                    # Return synthetic WAV on credit exhaustion
-                    mock_wav = b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80>\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
-                    return base64.b64encode(mock_wav).decode("utf-8"), "fallback_browser_speech"
                 else:
                     logger.error(f"Sarvam TTS error: HTTP {response.status_code} - {response.text}")
-                    mock_wav = b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80>\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
-                    return base64.b64encode(mock_wav).decode("utf-8"), "fallback_browser_speech"
         except Exception as e:
-            if "402" in str(e) or "credit" in str(e).lower():
+            if "402" in str(e) or "403" in str(e) or "credit" in str(e).lower():
                 self._trip_circuit(str(e))
-            mock_wav = b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80>\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
-            return base64.b64encode(mock_wav).decode("utf-8"), "fallback_browser_speech"
+
+        mock_wav = b"RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80>\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00"
+        return base64.b64encode(mock_wav).decode("utf-8"), "fallback_browser_speech"
 
     async def translate(
         self,
         text: str,
         source_language: str,
         target_language: str
-    ) -> Tuple[str, str]:
+    ) -> Tuple[Optional[str], str]:
         """
-        Translate text using Sarvam Mayura translation API.
-        Returns: (translated_text, engine_used)
+        Translates text using Sarvam Mayura translation API with sentence chunking (Task 7).
+        Reference: https://docs.sarvam.ai/api-reference/translate
         """
         source_code = SARVAM_LANG_MAP.get(source_language, "hi-IN")
         target_code = SARVAM_LANG_MAP.get(target_language, "en-IN")
@@ -218,71 +261,67 @@ class SarvamService:
             return text, "passthrough"
 
         if not self.is_configured:
-            logger.info("Sarvam translate disabled or unconfigured. Falling back to dictionary/LLM.")
-            return self._mock_translate(text, source_language, target_language), "mock_sarvam_mayura"
+            return None, "translation_unavailable"
 
         headers = {
             "api-subscription-key": self.api_key,
             "Content-Type": "application/json"
         }
-        payload = {
-            "input": text[:950],
-            "source_language_code": source_code,
-            "target_language_code": target_code,
-            "speaker_gender": "Female",
-            "mode": "formal",
-            "model": "mayura:v1"
-        }
 
+        # Chunk text if over 800 chars on sentence boundaries
+        chunks = []
+        if len(text) > 800:
+            sentences = re.split(r'([.।\n])', text)
+            cur = ""
+            for i in range(0, len(sentences) - 1, 2):
+                s = sentences[i] + sentences[i+1]
+                if len(cur) + len(s) > 750 and cur:
+                    chunks.append(cur.strip())
+                    cur = s
+                else:
+                    cur += s
+            if cur.strip():
+                chunks.append(cur.strip())
+        else:
+            chunks = [text]
+
+        translated_chunks = []
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{self.api_url}/translate",
-                    headers=headers,
-                    json=payload
-                )
-                if response.status_code == 200:
-                    res_json = response.json()
-                    translated = res_json.get("translated_text", text)
-                    return translated, "sarvam_mayura"
-                elif response.status_code in [401, 402, 403, 429]:
-                    self._trip_circuit(f"HTTP {response.status_code} - {response.text}")
-                    return self._mock_translate(text, source_language, target_language), "mock_sarvam_mayura_fallback"
-                else:
-                    return self._mock_translate(text, source_language, target_language), "mock_sarvam_mayura_fallback"
-        except Exception as e:
-            if "402" in str(e) or "credit" in str(e).lower():
-                self._trip_circuit(str(e))
-            return self._mock_translate(text, source_language, target_language), "mock_sarvam_mayura_fallback"
+                for chunk in chunks:
+                    payload = {
+                        "input": chunk,
+                        "source_language_code": source_code,
+                        "target_language_code": target_code,
+                        "speaker_gender": "Female",
+                        "mode": "formal",
+                        "model": "mayura:v1"
+                    }
+                    response = await client.post(
+                        f"{self.api_url}/translate",
+                        headers=headers,
+                        json=payload
+                    )
+                    if response.status_code == 200:
+                        res_json = response.json()
+                        tr = res_json.get("translated_text", "")
+                        translated_chunks.append(tr)
+                    elif response.status_code == 429:
+                        self._handle_rate_limit(60)
+                        return None, "sarvam_rate_limited"
+                    elif response.status_code in [401, 402, 403]:
+                        self._trip_circuit(f"HTTP {response.status_code} - {response.text}")
+                        return None, "sarvam_credits_exhausted"
+                    else:
+                        return None, f"sarvam_error_{response.status_code}"
 
-    def _mock_translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        """Deterministic domain dictionary translator fallback."""
-        hi_to_en = {
-            "टमाटर": "tomato", "धान": "paddy", "चावल": "rice", "गेहूं": "wheat",
-            "मक्का": "maize", "कपास": "cotton", "मंडी": "mandi market", "भाव": "price",
-            "कीमत": "price", "मौसम": "weather", "बारिश": "rainfall", "कीट": "pest",
-            "रोकथाम": "control remedy", "योजना": "scheme", "सब्सिडी": "subsidy",
-            "खाद": "fertilizer", "पत्ता मरोड़": "leaf curl virus", "तना छेदक": "stem borer",
-            "पीला रतुआ": "yellow rust", "गन्ना": "sugarcane", "सोयाबीन": "soybean",
-            "मूंगफली": "groundnut", "सरसों": "mustard", "आलू": "potato", "प्याज": "onion", "मिर्च": "chilli"
-        }
-        kn_to_en = {
-            "ಟೊಮೆಟೊ": "tomato", "ಭತ್ತ": "paddy", "ಗೋಧಿ": "wheat", "ಮೆಕ್ಕೆಜೋಳ": "maize",
-            "ಹತ್ತಿ": "cotton", "ಮಾರುಕಟ್ಟೆ": "market", "ಬೆಲೆ": "price", "ಹವಾಮಾನ": "weather",
-            "ಮಳೆ": "rain", "ಹುಳು": "pest", "ರೋಗ": "disease", "ಯೋಜನೆ": "scheme",
-            "ಸಹಾಯಧನ": "subsidy", "ಗೊಬ್ಬರ": "fertilizer", "ಕಬ್ಬು": "sugarcane", "ಸೋಯಾಬೀನ್": "soybean",
-            "ಕಡಲೆಕಾಯಿ": "groundnut", "ಸಾಸಿವೆ": "mustard", "ಆಲೂಗಡ್ಡೆ": "potato", "ಈರುಳ್ಳಿ": "onion", "ಮೆಣಸಿನಕಾಯಿ": "chilli"
-        }
-        if target_lang.startswith("en"):
-            words = text.split()
-            translated_words = []
-            lookup = hi_to_en if source_lang.startswith("hi") else kn_to_en
-            for w in words:
-                cleaned = w.strip("।,?!")
-                translated_words.append(lookup.get(cleaned, w))
-            return f"[Canonical EN] {' '.join(translated_words)}"
-        else:
-            lang_label = "Hindi" if target_lang.startswith("hi") else "Kannada"
-            return f"[{lang_label} Response] {text}"
+            if translated_chunks:
+                return " ".join(translated_chunks), "sarvam_mayura"
+        except Exception as e:
+            if "402" in str(e) or "403" in str(e) or "credit" in str(e).lower():
+                self._trip_circuit(str(e))
+            logger.debug(f"Sarvam translation exception: {e}")
+
+        return None, "translation_unavailable"
 
 sarvam_service = SarvamService()

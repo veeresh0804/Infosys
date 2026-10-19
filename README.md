@@ -23,9 +23,9 @@ Infosys/
 │   │   │   │   ├── intent_classifier.py# Intent classification (HF BART-MNLI & domain rule classifier)
 │   │   │   │   └── ner_service.py      # Agricultural NER (HF bert-base-NER & Agri Gazetteer)
 │   │   │   ├── rag/
-│   │   │   │   ├── vector_store.py     # Pinecone & ChromaDB configurable vector store
-│   │   │   │   ├── embeddings.py       # SentenceTransformers (all-MiniLM-L6-v2, 384 dim)
-│   │   │   │   ├── rag_engine.py       # LangChain RAG synthesis with configurable LLM (Gemini, Groq, OpenAI)
+│   │   │   │   ├── vector_store.py     # Local file-backed vector store (Pinecone & ChromaDB configurable)
+│   │   │   │   ├── embeddings.py       # FastEmbed ONNX (all-MiniLM-L6-v2, 384 dim, <50MB RAM)
+│   │   │   │   ├── rag_engine.py       # Direct async RAG synthesis with ordered free-tier provider chain (Gemini -> Groq -> Domain Mock)
 │   │   │   │   └── quality_scorer.py   # Response quality scoring & human review flagging (< 0.70)
 │   │   │   ├── live_data/
 │   │   │   │   ├── mandi_service.py    # AGMARKNET APMC mandi price API & clearly-labelled mock
@@ -152,12 +152,14 @@ This suite automatically exercises:
 
 ## 💰 Free Tier Quota Budget & Failover Matrix
 
-| Provider / Service | Free Tier Limits | What the App Does When Quota is Exhausted | Where to Get Free Key |
+> **Note on Free Tier Quotas**: Limits verified from official provider documentation and dashboards as of October 2026. Providers may update quotas over time.
+
+| Provider / Service | Free Tier Limits (Checked Oct 2026) | What the App Does When Quota is Exhausted | Where to Get Free Key |
 |---|---|---|---|
-| **Google Gemini (`gemini-2.5-flash`)** | 15 RPM, 1,500 RPD, 1M TPM | Automatically fails over to Groq free tier with exponential backoff. Logs warning when reaching 85% of limit. | [Google AI Studio](https://aistudio.google.com/) (No credit card) |
-| **Groq (`llama-3.3-70b-versatile`)** | 30 RPM, 14,400 RPD, 6,000 TPM | Automatically fails over to local domain-grounded synthesis mock. | [Groq Console](https://console.groq.com/keys) (No credit card) |
-| **Groq Whisper (`whisper-large-v3-turbo`)** | Free tier access via Groq API | Falls back to client-side browser Web Speech API (`SpeechRecognition`). | [Groq Console](https://console.groq.com/keys) |
-| **Sarvam AI (Saaras STT & Bulbul TTS)** | One-time signup trial credits | Circuit breaker trips upon HTTP 402/403/429; permanently fails over to Groq Whisper & browser `speechSynthesis` without crashing. | [Sarvam Dashboard](https://dashboard.sarvam.ai/) |
+| **Google Gemini (`gemini-2.5-flash`)** | 15 RPM, 1,500 RPD, 1M TPM | Automatically fails over to Groq free tier with exponential backoff. Logs warning when reaching 85% of daily limit. | [Google AI Studio](https://aistudio.google.com/) (No credit card) |
+| **Groq (`llama-3.3-70b-versatile`)** | 30 RPM, 14,400 RPD, 6,000 TPM | Automatically fails over to local domain-grounded synthesis fallback. | [Groq Console](https://console.groq.com/keys) (No credit card) |
+| **Groq Whisper (`whisper-large-v3-turbo`)** | 20 RPM, 25 RPD free tier | Returns honest HTTP 503 `stt_unavailable` and prompts farmer to speak again or type (never fabricates text). | [Groq Console](https://console.groq.com/keys) |
+| **Sarvam AI (Saaras STT & Bulbul TTS)** | One-time signup trial credits | Circuit breaker trips upon HTTP 401/402/403 (permanent) or 429 (60s cooldown); fails over to Groq Whisper & browser TTS cleanly. | [Sarvam Dashboard](https://dashboard.sarvam.ai/) |
 | **Local Vector Store (`fastembed` ONNX)** | Unlimited (100% local, runs in < 50MB RAM) | Always operational; no quota limit. Prebuilt 50 chunks index committed to repo. | No key required |
 | **Open-Meteo Weather** | Up to 10,000 calls/day for non-commercial educational use | Falls back to seasonal agro-meteorological advisory. | No key required |
 | **data.gov.in AGMARKNET** | Free government key | Displays clearly-labeled sample APMC mandi prices with sample badge. | [data.gov.in](https://data.gov.in/) |
@@ -170,7 +172,7 @@ This suite automatically exercises:
 ### 1. Speech Processing
 - **`POST /api/speech/transcribe`**
   - **Payload**: `multipart/form-data` with `file: <audio_file>`, `language_code: <optional>`
-  - **Response**: `{"transcript": "...", "language_code": "hi-IN", "engine_used": "sarvam_saaras", "confidence": 0.92}`
+  - **Response**: `{"transcript": "...", "language_code": "hi-IN", "engine_used": "sarvam_saaras", "confidence": null}`
 - **`POST /api/speech/synthesize`**
   - **Payload**: `{"text": "...", "target_language": "hi", "speaker": "meera"}`
   - **Response**: `{"audio_base64": "...", "format": "wav", "engine_used": "sarvam_bulbul"}`
@@ -214,12 +216,21 @@ This suite automatically exercises:
 | `SARVAM_API_KEY` | Sarvam AI Indic STT, TTS, and Translation Key | `your_sarvam_api_key_here` (Uses clearly-labelled mock if empty) |
 | `OPENAI_API_KEY` | OpenAI Whisper STT fallback & optional LLM | `your_openai_api_key_here` (Uses clearly-labelled mock if empty) |
 | `GOOGLE_API_KEY` | Google Gemini API key for free tier RAG | Free tier from Google AI Studio |
-| `GEMINI_MODEL` | Gemini Model identifier | `gemini-1.5-flash` |
+| `GEMINI_MODEL` | Gemini Model identifier | `gemini-2.5-flash` (Active verified Google AI Studio model) |
 | `GROQ_API_KEY` | Groq API key for free tier open-source LLMs | `your_groq_api_key_here` |
 | `PINECONE_API_KEY`| Pinecone cloud vector DB key | `your_pinecone_api_key_here` (Uses persistent local vector store if empty) |
-| `VECTOR_DB_TYPE` | Selected vector database | `pinecone` (configurable to `chromadb`) |
+| `VECTOR_DB_TYPE` | Selected vector database | `local` (configurable to `chromadb` or `pinecone`) |
 | `EMBEDDING_MODEL_NAME` | Embedding model for semantic search | `sentence-transformers/all-MiniLM-L6-v2` |
 | `DATA_GOV_IN_API_KEY` | data.gov.in AGMARKNET mandi key | Clearly-labelled APMC market mock if empty |
 | `WEATHER_PROVIDER` | Weather forecast provider | `open-meteo` (Free, no key required) |
+| `ADMIN_API_KEY` | Secret token protecting admin reindex endpoint | `dev-admin-token` |
 | `QUALITY_CONFIDENCE_THRESHOLD` | Threshold below which queries are flagged | `0.70` |
 | `DATABASE_URL` | SQLite database URI | `sqlite+aiosqlite:///./data/sessions.db` |
+
+---
+
+## ⚠️ Known Limitations
+1. **Romanized Indic Text (Hinglish / Kanglish)**: Unstandardized phonetic Latin-script queries (e.g. *"tamatar me patta marod rog ka ilaj"*) rely on the free LLM chain for translation when detected. Highly ambiguous Romanized dialects without clear agricultural keywords may fall back to English or lower routing confidence.
+2. **Sarvam AI Trial Credits**: Sarvam AI offers one-time trial credits. The backend circuit breaker trips upon credit exhaustion (HTTP 401/402/403) and falls over cleanly to Groq Whisper and browser speech synthesis.
+3. **Provincial APMC Mandis**: Live prices are queried from AGMARKNET (data.gov.in); when government portal API keys are awaiting verification, clearly-labelled sample prices are rendered.
+

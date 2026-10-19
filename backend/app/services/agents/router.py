@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Dict, Any, Optional
 from backend.app.services.nlp.intent_classifier import intent_classifier
 from backend.app.services.nlp.ner_service import ner_service
@@ -32,18 +33,23 @@ class AgentRouter:
         original_query: str,
         canonical_query: str,
         detected_language: str,
-        farmer_profile: Dict[str, Any]
+        farmer_profile: Dict[str, Any],
+        answer_language: Optional[str] = None
     ) -> QueryPipelineResponse:
         # 1. Intent classification & Agricultural NER
         intent, intent_confidence, intent_model = intent_classifier.classify_intent(canonical_query)
         entities = ner_service.extract_entities(canonical_query)
 
-        # 2. Dispatch to specialized sub-agent
+        # 2. Decide target language explicitly (Task 3)
+        # Never fall back to Hindi for an English request!
+        target_lang = answer_language or (
+            detected_language if detected_language in ["hi", "kn"]
+            else farmer_profile.get("preferred_language") or "en"
+        )
+
         retrieved_chunks = []
         live_data = None
         sub_agent_name = intent
-
-        target_lang = detected_language if detected_language in ["hi", "kn"] else farmer_profile.get("preferred_language", "hi")
 
         if intent == "market_prices":
             answer_canonical, retrieved_chunks, live_data = await market_price_agent.execute(
@@ -62,7 +68,6 @@ class AgentRouter:
                 canonical_query, farmer_profile
             )
         else:
-            # Default to crop advisory
             sub_agent_name = "crop_advisory"
             answer_canonical, retrieved_chunks, live_data = await crop_advisory_agent.execute(
                 canonical_query, farmer_profile, target_language=target_lang
@@ -78,6 +83,29 @@ class AgentRouter:
             live_data=live_data
         )
 
+        # 4. Generate Short Answer
+        short_answer_canonical = self._extract_short_answer(answer_canonical, sub_agent_name, live_data)
+
+        # 5. Direct translation reuse or back-translation
+        if target_lang == "en":
+            answer_translated = answer_canonical
+            short_answer_translated = short_answer_canonical
+        elif live_data and live_data.get("direct_translated_answer") and target_lang in ["hi", "kn"]:
+            answer_translated = live_data["direct_translated_answer"]
+            short_answer_translated = live_data.get("direct_translated_short") or self._extract_short_answer(answer_translated, sub_agent_name, live_data)
+        else:
+            tr_res, _ = await translation_service.from_canonical(
+                canonical_text=answer_canonical,
+                target_language=target_lang
+            )
+            answer_translated = tr_res or answer_canonical
+            sh_res, _ = await translation_service.from_canonical(
+                canonical_text=short_answer_canonical,
+                target_language=target_lang
+            )
+            short_answer_translated = sh_res or short_answer_canonical
+
+        # Task 8: Record flagged review with English response plus translated one
         if is_low_confidence and flag_reason:
             await quality_scorer.record_flagged_review(
                 session_id=session_id,
@@ -85,29 +113,16 @@ class AgentRouter:
                 canonical_query=canonical_query,
                 detected_language=detected_language,
                 detected_intent=intent,
-                response_text=answer_canonical,
+                response_text=f"[Canonical EN]: {answer_canonical}\n\n[Translated {target_lang}]: {answer_translated}",
                 confidence_score=confidence_score,
                 sub_agent=sub_agent_name,
                 flag_reason=flag_reason,
                 retrieved_chunks=retrieved_chunks
             )
 
-        # 4. Generate Short Answer (for farmer voice & concise card display)
-        short_answer_canonical = self._extract_short_answer(answer_canonical, sub_agent_name, live_data)
-
-        # 5. Direct translation reuse or back-translation
-        if live_data and live_data.get("direct_translated_answer") and target_lang in ["hi", "kn"]:
-            answer_translated = live_data["direct_translated_answer"]
-            short_answer_translated = live_data.get("direct_translated_short") or self._extract_short_answer(answer_translated, sub_agent_name, live_data)
-        else:
-            answer_translated, _ = await translation_service.from_canonical(
-                canonical_text=answer_canonical,
-                target_language=target_lang
-            )
-            short_answer_translated, _ = await translation_service.from_canonical(
-                canonical_text=short_answer_canonical,
-                target_language=target_lang
-            )
+        # Check if any retrieved chunk is unverified (Task 9)
+        has_unverified = any(c.metadata.get("verified") is False for c in retrieved_chunks)
+        engine_used = (live_data.get("synthesis_engine") if live_data else None) or intent_model
 
         return QueryPipelineResponse(
             session_id=session_id,
@@ -125,6 +140,8 @@ class AgentRouter:
             confidence_score=confidence_score,
             is_low_confidence=is_low_confidence,
             is_fallback=is_fallback,
+            engine_used=engine_used,
+            has_unverified_sources=has_unverified,
             flag_reason=flag_reason,
             retrieved_chunks=retrieved_chunks,
             live_data=live_data
@@ -139,15 +156,17 @@ class AgentRouter:
             p = live_data["mandi_prices"][0]
             return f"{p.get('commodity')} modal price at {p.get('market')} is ₹{p.get('modal_price')} per quintal."
 
-        # For text advisories, take the first 1-2 sentences
+        # For text advisories, take the first 1-2 sentences supporting Latin '.' and Indic '।'
         clean = full_answer.strip()
         lines = [line.strip() for line in clean.split("\n") if line.strip() and not line.strip().startswith("According to")]
         if lines:
             first_block = lines[0]
-            sentences = first_block.split(". ")
-            if len(sentences) > 1:
-                return f"{sentences[0]}. {sentences[1]}."
-            return sentences[0]
+            parts = re.split(r'([.।\n])', first_block)
+            if len(parts) >= 4:
+                return (parts[0] + parts[1] + " " + parts[2] + parts[3]).strip()
+            elif len(parts) >= 2:
+                return (parts[0] + parts[1]).strip()
+            return first_block[:160]
         return clean[:160]
 
 agent_router = AgentRouter()

@@ -20,7 +20,7 @@ class CropAdvisoryAgent:
     ) -> Tuple[str, List[RetrievedChunk], Dict[str, Any]]:
         vector_store = get_vector_store()
         chunks = await vector_store.similarity_search(query, top_k=3)
-        full_answer, short_answer, engine = await rag_engine.generate_response(
+        ans_tr, short_tr, ans_en, short_en, engine = await rag_engine.generate_response(
             query=query,
             retrieved_chunks=chunks,
             farmer_profile=farmer_profile,
@@ -31,9 +31,9 @@ class CropAdvisoryAgent:
             "sub_agent": "crop_advisory",
             "chunks_retrieved": len(chunks),
             "synthesis_engine": engine,
-            "direct_translated_answer": full_answer if target_language in ["hi", "kn"] else None,
-            "direct_translated_short": short_answer if target_language in ["hi", "kn"] else None
+            "direct_translated_answer": ans_tr if target_language in ["hi", "kn"] else None,
+            "direct_translated_short": short_tr if target_language in ["hi", "kn"] else None
         }
-        return full_answer, chunks, extra_data
+        return ans_en, chunks, extra_data
 
 crop_advisory_agent = CropAdvisoryAgent()

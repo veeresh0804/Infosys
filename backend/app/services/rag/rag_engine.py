@@ -1,13 +1,13 @@
-import os
 import re
 import json
 import logging
 import hashlib
-import asyncio
 import datetime
+import asyncio
 from typing import List, Dict, Any, Tuple, Optional
 import httpx
 from sqlalchemy.future import select
+
 from backend.app.config import settings
 from backend.app.models.schemas import RetrievedChunk, LLMCacheModel
 from backend.app.database import AsyncSessionLocal
@@ -20,6 +20,12 @@ LANGUAGE_NAMES = {
     "kn": "Kannada (ಕನ್ನಡ)",
     "en": "English"
 }
+
+# Mandatory pesticide safety standing line (Task 9)
+PESTICIDE_SAFETY_LINE = (
+    "Safety notice: Follow the product label, use only products registered for that crop, "
+    "wear protective gear, respect the waiting period, and consult the local KVK or Kisan Call Centre."
+)
 
 # In-memory daily request tracking to monitor free tier quotas
 DAILY_REQUEST_COUNTERS = {
@@ -49,15 +55,10 @@ def _check_and_increment_counter(provider: str) -> int:
     return cnt
 
 def scrub_pii(text: str) -> str:
-    """
-    Strips personal identifiable information (phone numbers, full names) before
-    sending prompts to public/free-tier LLM endpoints.
-    """
+    """Strips personal identifiable information before sending prompts to free-tier LLM endpoints."""
     if not text:
         return text
-    # Strip Indian phone numbers (10 digits with optional +91 or leading 0)
     text = re.sub(r"\b(?:\+91[\-\s]?)?[6-9]\d{9}\b", "[PHONE_REDACTED]", text)
-    # Strip name introductions (e.g. "my name is Ramesh", "mera naam Suresh")
     text = re.sub(
         r"(?i)\b(my name is|i am|mera naam|nanna hesaru|naan)\s+([A-Z][a-z]+|[a-z]+)\b",
         r"\1 [FARMER]",
@@ -65,35 +66,34 @@ def scrub_pii(text: str) -> str:
     )
     return text
 
+def split_sentence_boundary(text: str) -> str:
+    """Splits at first sentence boundary, supporting both Latin '.' and Indic '।'"""
+    parts = re.split(r'([.।\n])', text)
+    if len(parts) >= 2:
+        res = (parts[0] + parts[1]).strip()
+        if len(res) > 15:
+            return res[:220].strip()
+    return text[:180].strip()
+
 class RAGEngine:
     """
-    Retrieval-Augmented Generation (RAG) synthesis engine using an ordered free-tier provider chain:
+    Retrieval-Augmented Generation (RAG) synthesis engine with free-tier provider chain:
       1. Google Gemini free tier (AI Studio)
       2. Groq free tier (Llama-3.3-70b-versatile)
-      3. Domain-grounded deterministic expert synthesis fallback
-
-    Features:
-      - 24-hour SQLite query caching (repeated demo questions cost 0 calls)
-      - Direct fluent generation in farmer's language (Hindi / Kannada / English)
-      - PII scrubbing
-      - Automatic retry with exponential backoff on 429/quota/5xx errors
-      - Daily quota tracking and alerting
+      3. Domain-grounded deterministic localized expert synthesis fallback
     """
 
     def __init__(self):
         self.gemini_model = settings.GEMINI_MODEL
         self.groq_model = settings.GROQ_MODEL
-        logger.info(f"RAG Engine initialized with chain: Gemini ({self.gemini_model}) -> Groq ({self.groq_model}) -> Domain Mock")
+        logger.info(f"RAG Engine initialized: Gemini ({self.gemini_model}) -> Groq ({self.groq_model}) -> Domain Mock")
 
     def _cache_key(self, query: str, language: str) -> str:
         clean = f"{query.strip().lower()}:{language.strip().lower()}"
         return hashlib.sha256(clean.encode("utf-8")).hexdigest()
 
-    async def get_cached_answer(self, query: str, language: str) -> Optional[Tuple[str, str, str]]:
-        """
-        Retrieves cached response from SQLite if less than 24 hours old.
-        Returns: (full_answer, short_answer, provider) or None
-        """
+    async def get_cached_answer(self, query: str, language: str) -> Optional[Tuple[str, str, str, str, str]]:
+        """Retrieves cached response from SQLite if less than 24 hours old."""
         try:
             key = self._cache_key(query, language)
             async with AsyncSessionLocal() as db:
@@ -102,9 +102,16 @@ class RAGEngine:
                 if cached:
                     now = datetime.datetime.utcnow()
                     diff = now - (cached.created_at or now)
-                    if diff.total_seconds() < 86400:  # 24 hours
+                    if diff.total_seconds() < 86400:
                         logger.info(f"🎯 Cache hit (SQLite 24h) for query in '{language}'. Cost: 0 API calls.")
-                        return cached.full_answer, cached.short_answer or cached.full_answer, f"{cached.provider}_cached"
+                        # full_ans, short_ans, canonical_ans, short_canonical, provider
+                        return (
+                            cached.full_answer,
+                            cached.short_answer or cached.full_answer,
+                            cached.full_answer,
+                            cached.short_answer or cached.full_answer,
+                            f"{cached.provider}_cached"
+                        )
         except Exception as e:
             logger.debug(f"Cache lookup bypassed: {e}")
         return None
@@ -117,13 +124,10 @@ class RAGEngine:
         short_answer: str,
         provider: str
     ):
-        """
-        Persists response to SQLite cache for 24 hours.
-        """
+        """Persists response to SQLite cache for 24 hours."""
         try:
             key = self._cache_key(query, language)
             async with AsyncSessionLocal() as db:
-                # Remove any existing entry
                 existing = await db.execute(select(LLMCacheModel).where(LLMCacheModel.cache_key == key))
                 obj = existing.scalars().first()
                 if obj:
@@ -152,17 +156,17 @@ class RAGEngine:
         retrieved_chunks: List[RetrievedChunk],
         farmer_profile: Dict[str, Any],
         target_language: str = "en"
-    ) -> Tuple[str, str, str]:
+    ) -> Tuple[str, str, str, str, str]:
         """
-        Synthesizes grounded agricultural answer directly in target_language.
-        Returns: (full_answer, short_answer, engine_used)
+        Synthesizes grounded agricultural answer.
+        Returns: (answer_translated, short_answer_translated, answer_canonical, short_answer_canonical, engine_used)
         """
         # 1. Check 24-hour cache first
         cached = await self.get_cached_answer(query, target_language)
         if cached:
             return cached
 
-        # 2. Format context and scrub PII
+        # 2. Format context and assemble honest profile (Task 6: never invent profile facts)
         if retrieved_chunks:
             context_text = "\n\n".join([
                 f"[Source: {c.source} | Score: {c.similarity_score}]\n{c.content}"
@@ -172,51 +176,70 @@ class RAGEngine:
             context_text = "No direct knowledge base chunk retrieved."
 
         safe_query = scrub_pii(query)
-        state = farmer_profile.get("state", "Karnataka")
-        district = farmer_profile.get("district", "Bengaluru Rural")
-        landholding = farmer_profile.get("landholding_acres", 2.0)
-        crops = ", ".join(farmer_profile.get("crops_grown", ["Tomato", "Paddy"]))
+
+        # Assemble profile honestly
+        state = farmer_profile.get("state")
+        district = farmer_profile.get("district")
+        landholding = farmer_profile.get("landholding_acres")
+        crops_list = farmer_profile.get("crops_grown", [])
+        crops = ", ".join(crops_list) if crops_list else None
+
+        loc_str = f"{district}, {state}" if (district and state) else (state or "Unknown / Not specified")
+        land_str = f"{landholding} acres" if landholding else "Not specified"
+        crops_str = crops if crops else "Not specified"
+
         lang_label = LANGUAGE_NAMES.get(target_language, "English")
 
+        # Standing pesticide safety notice instruction (Task 9)
         system_instruction = (
             f"You are an expert Indian Agricultural Extension Specialist advising smallholder farmers. "
             f"Ground your answer strictly in the provided verified agricultural context. "
-            f"You MUST respond directly and fluently in {lang_label}. "
-            f"Never tell the farmer to just 'read more'; give practical dosages, pesticide names, or fertilizer schedules if in context. "
-            f"Output your final response strictly as valid JSON with two fields:\n"
-            f'{{"short_answer": "1-2 short, crystal-clear sentences suitable for voice speech playback in {lang_label}",\n'
-            f' "full_answer": "complete, detailed advisory in {lang_label}"}}'
+            f"You MUST provide your response directly and fluently in {lang_label}.\n"
+            f"Always include this mandatory safety advisory when recommending chemical controls:\n"
+            f"'{PESTICIDE_SAFETY_LINE}'\n"
+            f"If a farmer profile field is Unknown or Not specified, do not assume or invent facts.\n"
+            f"Output your final response strictly as valid JSON with four fields:\n"
+            f'{{\n'
+            f' "answer_translated": "Complete, detailed advisory directly in {lang_label}",\n'
+            f' "short_answer_translated": "1-2 short, crystal-clear sentences suitable for speech playback in {lang_label}",\n'
+            f' "answer_canonical": "Complete equivalent advisory in English",\n'
+            f' "short_answer_canonical": "1-2 short sentences in English"\n'
+            f'}}'
         )
 
         user_content = (
             f"Verified Agricultural Context:\n{context_text}\n\n"
-            f"Farmer Location: {district}, {state} | Land: {landholding} acres | Crops: {crops}\n\n"
+            f"Farmer Location: {loc_str} | Land: {land_str} | Crops: {crops_str}\n\n"
             f"Farmer Question: {safe_query}"
         )
 
         # 3. Try Gemini Free Tier
         if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY.strip() and not settings.GOOGLE_API_KEY.startswith("your_"):
-            ans, short_ans, engine = await self._call_gemini(system_instruction, user_content)
-            if ans:
+            ans_tr, short_tr, ans_en, short_en, engine = await self._call_gemini(system_instruction, user_content, target_language)
+            if ans_tr:
                 _check_and_increment_counter("gemini")
-                await self.set_cached_answer(query, target_language, ans, short_ans, engine)
-                return ans, short_ans, engine
+                await self.set_cached_answer(query, target_language, ans_tr, short_tr, engine)
+                return ans_tr, short_tr, ans_en, short_en, engine
 
         # 4. Try Groq Free Tier
         if settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip() and not settings.GROQ_API_KEY.startswith("your_"):
-            ans, short_ans, engine = await self._call_groq(system_instruction, user_content)
-            if ans:
+            ans_tr, short_tr, ans_en, short_en, engine = await self._call_groq(system_instruction, user_content, target_language)
+            if ans_tr:
                 _check_and_increment_counter("groq")
-                await self.set_cached_answer(query, target_language, ans, short_ans, engine)
-                return ans, short_ans, engine
+                await self.set_cached_answer(query, target_language, ans_tr, short_tr, engine)
+                return ans_tr, short_tr, ans_en, short_en, engine
 
-        # 5. Domain Mock Fallback
+        # 5. Localized Domain Mock Fallback (Task 4: genuine localized messages, never English with Hindi tag)
         logger.info("[MOCK] LLM providers unavailable or unconfigured. Using domain-grounded synthesis fallback.")
-        full_ans, short_ans = self._synthesize_grounded_answer(query, retrieved_chunks, target_language)
-        return full_ans, short_ans, "domain_grounded_mock_engine"
+        ans_tr, short_tr, ans_en, short_en = self._synthesize_grounded_answer(query, retrieved_chunks, target_language)
+        return ans_tr, short_tr, ans_en, short_en, "domain_grounded_mock_engine"
 
-    async def _call_gemini(self, system_instruction: str, user_content: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        """Invokes Google Gemini free tier via REST API with backoff retry."""
+    async def _call_gemini(
+        self,
+        system_instruction: str,
+        user_content: str,
+        target_language: str
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={settings.GOOGLE_API_KEY}"
         payload = {
             "contents": [
@@ -238,8 +261,8 @@ class RAGEngine:
                         candidates = data.get("candidates", [])
                         if candidates:
                             raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-                            full_ans, short_ans = self._parse_llm_json(raw_text)
-                            return full_ans, short_ans, f"google_gemini_{self.gemini_model}"
+                            ans_tr, short_tr, ans_en, short_en = self._parse_llm_json(raw_text, target_language)
+                            return ans_tr, short_tr, ans_en, short_en, f"google_gemini_{self.gemini_model}"
                     elif resp.status_code in [429, 500, 503]:
                         logger.warning(f"Gemini API returned status {resp.status_code}. Backing off {1 + attempt * 2}s...")
                         await asyncio.sleep(1 + attempt * 2)
@@ -250,10 +273,14 @@ class RAGEngine:
                 logger.warning(f"Gemini call exception on attempt {attempt}: {e}")
                 await asyncio.sleep(1)
 
-        return None, None, None
+        return None, None, None, None, None
 
-    async def _call_groq(self, system_instruction: str, user_content: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-        """Invokes Groq free tier (Llama-3.3-70b-versatile) via OpenAI-compatible endpoint."""
+    async def _call_groq(
+        self,
+        system_instruction: str,
+        user_content: str,
+        target_language: str
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
@@ -279,8 +306,8 @@ class RAGEngine:
                         choices = data.get("choices", [])
                         if choices:
                             raw_text = choices[0].get("message", {}).get("content", "")
-                            full_ans, short_ans = self._parse_llm_json(raw_text)
-                            return full_ans, short_ans, f"groq_{self.groq_model}"
+                            ans_tr, short_tr, ans_en, short_en = self._parse_llm_json(raw_text, target_language)
+                            return ans_tr, short_tr, ans_en, short_en, f"groq_{self.groq_model}"
                     elif resp.status_code in [429, 500, 503]:
                         logger.warning(f"Groq API returned {resp.status_code}. Backoff {1 + attempt * 2}s...")
                         await asyncio.sleep(1 + attempt * 2)
@@ -291,61 +318,64 @@ class RAGEngine:
                 logger.warning(f"Groq call exception on attempt {attempt}: {e}")
                 await asyncio.sleep(1)
 
-        return None, None, None
+        return None, None, None, None, None
 
-    def _parse_llm_json(self, raw_text: str) -> Tuple[str, str]:
-        """Parses {short_answer, full_answer} from LLM JSON output."""
+    def _parse_llm_json(self, raw_text: str, target_language: str) -> Tuple[str, str, str, str]:
+        """Parses answer_translated, short_answer_translated, answer_canonical, short_answer_canonical."""
         try:
             data = json.loads(raw_text)
-            full_ans = data.get("full_answer") or data.get("answer") or raw_text
-            short_ans = data.get("short_answer") or (full_ans.split(".")[0] + ".")
-            return full_ans.strip(), short_ans.strip()
+            ans_tr = data.get("answer_translated") or data.get("full_answer") or data.get("answer") or raw_text
+            short_tr = data.get("short_answer_translated") or data.get("short_answer") or split_sentence_boundary(ans_tr)
+            ans_en = data.get("answer_canonical") or (ans_tr if target_language == "en" else data.get("full_answer") or ans_tr)
+            short_en = data.get("short_answer_canonical") or split_sentence_boundary(ans_en)
+            return ans_tr.strip(), short_tr.strip(), ans_en.strip(), short_en.strip()
         except Exception:
-            lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
-            short_ans = lines[0] if lines else raw_text[:140]
-            return raw_text.strip(), short_ans
+            short_ans = split_sentence_boundary(raw_text)
+            return raw_text.strip(), short_ans, raw_text.strip(), short_ans
 
     def _synthesize_grounded_answer(
         self,
         query: str,
         retrieved_chunks: List[RetrievedChunk],
         target_language: str
-    ) -> Tuple[str, str]:
-        """Deterministic fallback synthesizer from knowledge chunks."""
-        if not retrieved_chunks:
-            msg = (
-                "Based on available agricultural advisories, please consult your nearest Krishi Vigyan Kendra (KVK) "
-                "or Kisan Call Centre (Toll-Free 1800-180-1551) for immediate specialized guidance."
-            )
-            return msg, msg
+    ) -> Tuple[str, str, str, str]:
+        """
+        Deterministic, genuinely localized fallback synthesizer from knowledge chunks (Task 4).
+        Never returns English text with a Hindi label.
+        """
+        top_content = retrieved_chunks[0].content if retrieved_chunks else "Consult local KVK for verified package of practices."
+        top_source = retrieved_chunks[0].source if retrieved_chunks else "ICAR Package of Practices"
 
-        top = retrieved_chunks[0]
-        full_lines = [
-            f"Advisory Source: {top.source}",
-            top.content
-        ]
-        if len(retrieved_chunks) > 1:
-            full_lines.append(f"\nAdditional Advisory ({retrieved_chunks[1].source}):\n{retrieved_chunks[1].content[:250]}...")
-
-        full_ans = "\n\n".join(full_lines)
-        short_ans = top.content.split("\n")[0]
-        if len(short_ans) > 180:
-            short_ans = short_ans[:180] + "..."
+        # English canonical answer (always English)
+        full_en = (
+            f"Advisory Source: {top_source}\n\n"
+            f"{top_content}\n\n"
+            f"{PESTICIDE_SAFETY_LINE}"
+        )
+        short_en = split_sentence_boundary(top_content)
 
         if target_language == "hi":
-            full_ans = f"[हिन्दी परामर्श] {full_ans}"
-            short_ans = f"[हिन्दी सारांश] {short_ans}"
+            full_tr = (
+                f"कृषि परामर्श (स्रोत: {top_source}):\n\n"
+                f"{top_content}\n\n"
+                f"सुरक्षा सूचना: उत्पाद लेबल का पालन करें, केवल पंजीकृत दवाओं का उपयोग करें, सुरक्षा उपकरण पहनें और निकटतम केवीके (KVK) से सलाह लें।"
+            )
+            short_tr = "फसल सलाह: अनुशंसित कृषि पैकेज का पालन करें और दवा छिड़काव से पहले लेबल अवश्य पढ़ें।"
+            return full_tr, short_tr, full_en, short_en
+
         elif target_language == "kn":
-            full_ans = f"[ಕನ್ನಡ ಸಲಹೆ] {full_ans}"
-            short_ans = f"[ಕನ್ನಡ ಸಾರಾಂಶ] {short_ans}"
+            full_tr = (
+                f"ಕೃಷಿ ಸಲಹೆ (ಮೂಲ: {top_source}):\n\n"
+                f"{top_content}\n\n"
+                f"ಸುರಕ್ಷತಾ ಸೂಚನೆ: ಉತ್ಪನ್ನದ ಲೇಬಲ್ ಸೂಚನೆ ಪಾಲಿಸಿ, ಕಾಯುವ ಅವಧಿ ಗೌರವಿಸಿ ಮತ್ತು ಸ್ಥಳೀಯ ಕೆವಿಕೆ (KVK) ಸಂಪರ್ಕಿಸಿ."
+            )
+            short_tr = "ಬೆಳೆ ಸಲಹೆ: ಶಿಫಾರಸು ಮಾಡಿದ ಕೃಷಿ ಪದ್ಧತಿಯನ್ನು ಅನುಸರಿಸಿ ಮತ್ತು ಔಷಧ ಬಳಸುವ ಮುನ್ನ ಲೇಬಲ್ ಓದಿ."
+            return full_tr, short_tr, full_en, short_en
 
-        return full_ans, short_ans
+        return full_en, short_en, full_en, short_en
 
-    async def translate_text(self, text: str, source_language: str, target_language: str) -> Tuple[str, str]:
-        """
-        Translates text between Indic languages and English using the free LLM chain.
-        Invoked when Sarvam credits are exhausted or disabled.
-        """
+    async def translate_text(self, text: str, source_language: str, target_language: str) -> Tuple[Optional[str], str]:
+        """Translates text between Indic languages and English using free LLM chain."""
         if source_language == target_language or not text.strip():
             return text, "passthrough"
 
@@ -356,7 +386,7 @@ class RAGEngine:
         )
 
         # 1. Try Gemini
-        if settings.GOOGLE_API_KEY:
+        if settings.GOOGLE_API_KEY and not settings.GOOGLE_API_KEY.startswith("your_"):
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={settings.GOOGLE_API_KEY}"
                 payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
@@ -371,7 +401,7 @@ class RAGEngine:
                 logger.debug(f"Gemini translation failed: {e}")
 
         # 2. Try Groq
-        if settings.GROQ_API_KEY:
+        if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("your_"):
             try:
                 url = "https://api.groq.com/openai/v1/chat/completions"
                 headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
@@ -390,6 +420,7 @@ class RAGEngine:
             except Exception as e:
                 logger.debug(f"Groq translation failed: {e}")
 
-        return f"[{target_language}] {text}", "mock_llm_translation_fallback"
+        # Return None on failure (Task 4: no fake [en] tags)
+        return None, "translation_failed"
 
 rag_engine = RAGEngine()

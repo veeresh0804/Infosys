@@ -8,19 +8,23 @@ from backend.app.services.nlp.whisper_fallback import whisper_service
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/speech", tags=["Speech Processing"])
 
-@router.post("/transcribe", response_model=STTResponse)
+from fastapi.responses import JSONResponse
+from backend.app.exceptions import STTUnavailableError
+
+@router.post("/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
     language_code: Optional[str] = Form(None)
 ):
     """
     Transcribes audio using Sarvam AI Indic STT (Saaras).
-    Automatically falls back to OpenAI Whisper if Sarvam is unavailable or unsupported.
+    Automatically falls back to Groq Whisper if Sarvam is unavailable or unsupported.
+    Never invents a transcript; returns 503 if all STT engines fail.
     """
     try:
         content = await file.read()
         if not content:
-            raise HTTPException(status_code=400, detail="Empty audio file uploaded")
+            return JSONResponse(status_code=400, content={"detail": "Empty audio file uploaded"})
 
         # 1. Try Sarvam AI STT
         try:
@@ -34,27 +38,40 @@ async def transcribe_audio(
                 transcript=transcript,
                 language_code=lang,
                 engine_used=engine,
-                confidence=0.92
+                confidence=None  # Only report confidence if engine provides it
             )
         except Exception as e:
-            logger.warning(f"Sarvam STT failed: {e}. Attempting OpenAI Whisper fallback...")
+            logger.warning(f"Sarvam STT failed: {e}. Attempting Groq Whisper fallback...")
 
-        # 2. Fallback to OpenAI Whisper
-        transcript, lang, engine = await whisper_service.transcribe(
-            audio_bytes=content,
-            filename=file.filename or "audio.wav",
-            content_type=file.content_type or "audio/wav",
-            language=language_code or "hi"
-        )
-        return STTResponse(
-            transcript=transcript,
-            language_code=lang,
-            engine_used=engine,
-            confidence=0.85
-        )
+        # 2. Fallback to Groq Whisper
+        try:
+            transcript, lang, engine = await whisper_service.transcribe(
+                audio_bytes=content,
+                filename=file.filename or "audio.wav",
+                content_type=file.content_type or "audio/wav",
+                language=language_code or "hi"
+            )
+            return STTResponse(
+                transcript=transcript,
+                language_code=lang,
+                engine_used=engine,
+                confidence=None  # Only report confidence if engine provides it
+            )
+        except Exception as sue:
+            logger.warning(f"STT engines unavailable: {sue}")
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "stt_unavailable",
+                    "message": f"Speech-to-text engines unavailable: {sue}"
+                }
+            )
     except Exception as e:
         logger.exception("Audio transcription failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=503,
+            content={"error": "stt_unavailable", "message": str(e)}
+        )
 
 @router.post("/synthesize", response_model=TTSResponse)
 async def synthesize_speech(req: TTSRequest):

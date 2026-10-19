@@ -1,29 +1,52 @@
 import re
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from backend.app.models.schemas import EntityItem
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Agricultural Domain Gazetteers
+# Agricultural Domain Gazetteers expanded with common Karnataka crops & pests
 CROPS_GAZETTEER = [
-    "paddy", "rice", "wheat", "tomato", "cotton", "maize", "corn",
-    "sugarcane", "soybean", "groundnut", "mustard", "gram", "onion",
-    "potato", "chilli", "turmeric", "banana", "mango", "pulses"
+    # Core Staples & Commercial Crops
+    "paddy", "rice", "wheat", "cotton", "maize", "corn", "sugarcane", "soybean",
+    "groundnut", "peanut", "mustard", "gram", "chickpea", "onion", "potato",
+    "chilli", "turmeric", "pulses", "mango",
+    # Karnataka Specific Major Crops (Task 5 requirement)
+    "finger millet", "ragi",
+    "sorghum", "jowar",
+    "brinjal", "eggplant",
+    "arecanut", "betel nut", "supari",
+    "coconut",
+    "coffee",
+    "banana",
+    "sunflower"
 ]
 
 PESTS_DISEASES_GAZETTEER = [
-    "yellow stem borer", "stem borer", "fall armyworm", "armyworm",
-    "leaf curl virus", "leaf curl", "yellow rust", "stripe rust", "rust",
-    "pink bollworm", "bollworm", "whitefly", "aphid", "thrips", "bacterial wilt",
-    "early blight", "late blight", "powdery mildew", "downy mildew", "dead heart"
+    # Rice / Paddy
+    "yellow stem borer", "stem borer", "blast disease", "neck blast", "finger blast", "blast",
+    "sheath blight", "brown plant hopper", "leaf folder",
+    # Tomato / Chilli / Vegetables
+    "leaf curl virus", "leaf curl", "early blight", "late blight", "bacterial wilt",
+    "fruit and shoot borer", "fruit borer", "shoot borer", "whitefly", "aphid", "thrips",
+    # Karnataka Specific Crop Pests & Diseases (Ragi, Sorghum, Arecanut, Coconut, Coffee, Banana, Sunflower)
+    "shoot fly",
+    "koleroga", "mahali", "yellow leaf disease", "bud rot",
+    "basal stem rot", "root wilt", "rhinoceros beetle", "red palm weevil",
+    "coffee berry borer", "white stem borer", "coffee leaf rust", "rust",
+    "panama wilt", "sigatoka leaf spot", "sigatoka", "bunchy top",
+    "alternaria leaf spot", "head rot",
+    # Cotton & General
+    "fall armyworm", "armyworm", "pink bollworm", "bollworm", "yellow rust",
+    "stripe rust", "powdery mildew", "downy mildew", "dead heart", "tikka disease"
 ]
 
 INPUTS_GAZETTEER = [
     "urea", "dap", "npk", "mop", "zinc sulfate", "zinc", "manure", "fym",
     "pretilachlor", "chlorantraniliprole", "pendimethalin", "sulfosulfuron",
-    "imidacloprid", "emamectin benzoate", "propiconazole", "neem oil", "biofertilizer"
+    "imidacloprid", "emamectin benzoate", "propiconazole", "tricyclazole",
+    "kasugamycin", "neem oil", "biofertilizer", "trichoderma"
 ]
 
 SCHEMES_GAZETTEER = [
@@ -33,15 +56,16 @@ SCHEMES_GAZETTEER = [
 
 LOCATIONS_GAZETTEER = [
     "karnataka", "bengaluru", "bangalore", "mandya", "mysore", "mysuru",
-    "dharwad", "belagavi", "shimoga", "shivamogga", "hassan", "punjab",
+    "dharwad", "belagavi", "shimoga", "shivamogga", "hassan", "kolar",
+    "tumakuru", "tumkur", "chikkamagaluru", "kodagu", "coorg", "punjab",
     "haryana", "maharashtra", "madhya pradesh", "uttar pradesh", "rajasthan"
 ]
 
 class AgriculturalNERService:
     """
     Named Entity Recognition for Agricultural Vocabulary.
-    Extracts CROP, PEST_DISEASE, INPUT, SCHEME, and LOCATION entities
-    using Hugging Face dslim/bert-base-NER combined with a verified Agricultural Gazetteer.
+    Extracts CROP, PEST_DISEASE, INPUT, SCHEME, and LOCATION entities.
+    Filters overlapping duplicate entities by preserving the longest span.
     """
 
     def __init__(self):
@@ -68,51 +92,61 @@ class AgriculturalNERService:
     def extract_entities(self, text: str) -> List[EntityItem]:
         """
         Extracts agricultural and general entities from canonical text.
+        Eliminates overlapping duplicates, preserving the longest span.
         """
-        entities: List[EntityItem] = []
-        seen_spans = set()
+        raw_candidates: List[Tuple[int, int, str, str, float]] = []
         text_lower = text.lower()
 
-        # 1. Agricultural Domain Gazetteer Extraction (Prioritized)
-        def match_gazetteer(gazetteer: List[str], label: str):
-            for item in sorted(gazetteer, key=len, reverse=True):
+        def collect_matches(gazetteer: List[str], label: str):
+            for item in gazetteer:
                 pattern = r"\b" + re.escape(item) + r"\b"
                 for m in re.finditer(pattern, text_lower):
-                    span = (m.start(), m.end())
-                    if span not in seen_spans:
-                        seen_spans.add(span)
-                        matched_text = text[m.start():m.end()]
-                        entities.append(EntityItem(
-                            text=matched_text,
-                            label=label,
-                            confidence=0.95
-                        ))
+                    start, end = m.start(), m.end()
+                    matched_text = text[start:end]
+                    raw_candidates.append((start, end, matched_text, label, 0.95))
 
-        match_gazetteer(CROPS_GAZETTEER, "CROP")
-        match_gazetteer(PESTS_DISEASES_GAZETTEER, "PEST_DISEASE")
-        match_gazetteer(INPUTS_GAZETTEER, "INPUT")
-        match_gazetteer(SCHEMES_GAZETTEER, "SCHEME")
-        match_gazetteer(LOCATIONS_GAZETTEER, "LOCATION")
+        collect_matches(CROPS_GAZETTEER, "CROP")
+        collect_matches(PESTS_DISEASES_GAZETTEER, "PEST_DISEASE")
+        collect_matches(INPUTS_GAZETTEER, "INPUT")
+        collect_matches(SCHEMES_GAZETTEER, "SCHEME")
+        collect_matches(LOCATIONS_GAZETTEER, "LOCATION")
 
-        # 2. General NER extraction using Hugging Face (e.g. general locations/organizations)
+        # 2. General NER extraction using Hugging Face if enabled locally
         try:
             self._load_hf_pipeline()
             if self._pipeline is not None:
-                hf_results = self._pipeline(text)
-                for res in hf_results:
-                    word = res.get("word", "").strip()
-                    entity_group = res.get("entity_group", "MISC")
-                    score = float(res.get("score", 0.8))
-                    # Avoid duplicate or sub-word fragments
-                    if len(word) > 2 and not any(e.text.lower() == word.lower() for e in entities):
-                        entities.append(EntityItem(
-                            text=word,
-                            label=entity_group,
-                            confidence=round(score, 2)
-                        ))
+                hf_res = self._pipeline(text)
+                for item in hf_res:
+                    word = item.get("word", "").strip()
+                    entity_group = item.get("entity_group", "")
+                    start = item.get("start", 0)
+                    end = item.get("end", 0)
+                    score = float(item.get("score", 0.8))
+                    if entity_group in ["LOC", "GPE"]:
+                        raw_candidates.append((start, end, word, "LOCATION", round(score, 2)))
         except Exception as e:
             logger.debug(f"HF NER extraction skipped: {e}")
 
-        return entities
+        # 3. Disambiguate overlapping spans: Sort by length descending, keep longest
+        # Candidate format: (start, end, text, label, score)
+        raw_candidates.sort(key=lambda x: (x[1] - x[0]), reverse=True)
+
+        accepted_spans: List[Tuple[int, int]] = []
+        filtered_entities: List[EntityItem] = []
+
+        for start, end, matched_text, label, score in raw_candidates:
+            # Check if this candidate overlaps with any already-accepted span
+            overlaps = any(max(start, s) < min(end, e) for s, e in accepted_spans)
+            if not overlaps:
+                accepted_spans.append((start, end))
+                filtered_entities.append(EntityItem(
+                    text=matched_text,
+                    label=label,
+                    confidence=score
+                ))
+
+        # Sort entities by their original position in text
+        filtered_entities.sort(key=lambda item: text.find(item.text))
+        return filtered_entities
 
 ner_service = AgriculturalNERService()

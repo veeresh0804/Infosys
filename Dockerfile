@@ -12,6 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download FastEmbed ONNX model at build time to prevent runtime cold start download (Task 11)
+RUN python -c "from fastembed import TextEmbedding; list(TextEmbedding(model_name='sentence-transformers/all-MiniLM-L6-v2').embed(['warmup']))"
+
+
 # Copy backend application and prebuilt knowledge index
 COPY backend/ ./backend/
 COPY data/ ./data/

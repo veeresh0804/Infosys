@@ -30,11 +30,13 @@ async def translate_text(req: TranslationRequest):
                 target_language=req.target_language
             )
 
+        is_failed = (translated is None or engine == "translation_failed")
         return TranslationResponse(
             original_text=req.text,
             detected_language=detected_lang,
-            translated_text=translated,
-            engine_used=engine
+            translated_text=translated or "",
+            engine_used=engine,
+            translation_failed=is_failed
         )
     except Exception as e:
         logger.exception("Translation request failed")

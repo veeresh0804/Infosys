@@ -13,25 +13,33 @@ class SchemeCheckerService:
 
     def check_eligibility(
         self,
-        landholding_acres: float = 2.0,
+        landholding_acres: Optional[float] = None,
         crops_grown: Optional[List[str]] = None,
-        state: Optional[str] = "Karnataka"
+        state: Optional[str] = None
     ) -> List[SchemeEligibilityItem]:
         """
-        Evaluates eligibility across all major central and state schemes.
+        Evaluates eligibility across all major central and state schemes honestly.
+        Does not assume unstated land or crops.
         """
-        crops = [c.lower() for c in (crops_grown or ["paddy", "tomato"])]
+        crops = [c.lower() for c in (crops_grown or [])]
         results: List[SchemeEligibilityItem] = []
 
         # 1. PM-KISAN
         # Eligible: Landholding farmer families with cultivable land
-        pm_kisan_eligible = landholding_acres > 0
+        pm_kisan_eligible = bool(landholding_acres is not None and landholding_acres > 0)
+        if landholding_acres is not None:
+            reason_pmk = (
+                f"Farmer holds {landholding_acres} acres of cultivable land and meets non-exclusion landholder criteria."
+                if pm_kisan_eligible else "Must own cultivable agricultural land."
+            )
+        else:
+            reason_pmk = "Landholding size not specified. Requires cultivable land ownership; please specify your land size."
+
         results.append(SchemeEligibilityItem(
             scheme_id="scheme-pm-kisan-01",
             scheme_name="Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)",
             is_eligible=pm_kisan_eligible,
-            reason=f"Farmer holds {landholding_acres} acres of cultivable land and meets non-exclusion landholder criteria."
-            if pm_kisan_eligible else "Must own cultivable agricultural land.",
+            reason=reason_pmk,
             benefits="Rs. 6,000 per year paid in three equal installments of Rs. 2,000 every 4 months via Direct Benefit Transfer.",
             portal_url="https://pmkisan.gov.in"
         ))
@@ -39,27 +47,41 @@ class SchemeCheckerService:
         # 2. PMFBY (Pradhan Mantri Fasal Bima Yojana)
         # Notified crops (Paddy, Wheat, Tomato, Cotton, Maize, etc.)
         notified_crops = {"paddy", "rice", "wheat", "cotton", "maize", "tomato", "soybean", "groundnut"}
-        crop_match = any(c in notified_crops for c in crops)
+        crop_match = any(c in notified_crops for c in crops) if crops else False
+        if crops:
+            reason_pmfby = (
+                f"Enrolled crops ({', '.join(crops_grown or [])}) are notified crops for comprehensive insurance coverage against non-preventable seasonal risks."
+                if crop_match else "Grown crops are not currently in the notified crop schedule."
+            )
+        else:
+            reason_pmfby = "Crops not specified. PMFBY covers notified crops (e.g. Paddy, Cotton, Tomato, Wheat)."
+
         results.append(SchemeEligibilityItem(
             scheme_id="scheme-pmfby-02",
             scheme_name="Pradhan Mantri Fasal Bima Yojana (PMFBY)",
             is_eligible=crop_match,
-            reason=f"Enrolled crops ({', '.join(crops_grown or [])}) are notified crops for comprehensive insurance coverage against non-preventable seasonal risks."
-            if crop_match else "Grown crops are not currently in the notified crop schedule.",
+            reason=reason_pmfby,
             benefits="Full sum insured coverage at nominal farmer premium: 2% for Kharif crops, 1.5% for Rabi crops, and 5% for horticultural crops.",
             portal_url="https://pmfby.gov.in"
         ))
 
         # 3. Kisan Credit Card (KCC)
         # Accessible to all farmers with valid land record or sharecropper agreement
-        kcc_eligible = landholding_acres > 0
-        max_limit = min(300000, int(landholding_acres * 50000 + 50000))
+        kcc_eligible = bool(landholding_acres is not None and landholding_acres > 0)
+        max_limit = min(300000, int(landholding_acres * 50000 + 50000)) if (landholding_acres is not None and landholding_acres > 0) else 160000
+        if landholding_acres is not None:
+            reason_kcc = (
+                f"Eligible for credit limit up to ~Rs. {max_limit:,} based on {landholding_acres} acres operational holding."
+                if kcc_eligible else "Operational landholding or tenant farming agreement required."
+            )
+        else:
+            reason_kcc = "Landholding size not specified. KCC offers collateral-free credit up to Rs. 1.6 Lakh for all verified cultivators."
+
         results.append(SchemeEligibilityItem(
             scheme_id="scheme-kcc-03",
             scheme_name="Kisan Credit Card (KCC) Scheme",
             is_eligible=kcc_eligible,
-            reason=f"Eligible for credit limit up to ~Rs. {max_limit:,} based on {landholding_acres} acres operational holding."
-            if kcc_eligible else "Operational landholding or tenant farming agreement required.",
+            reason=reason_kcc,
             benefits="Short term crop loan at 4% effective interest rate (7% base rate with 3% prompt repayment incentive). Collateral-free up to Rs. 1.6 Lakh.",
             portal_url="https://agricoop.nic.in"
         ))

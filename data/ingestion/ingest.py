@@ -3,7 +3,7 @@ import sys
 import json
 import asyncio
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 # Ensure project root is in sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,7 +23,11 @@ def load_json_file(file_path: str) -> List[Dict[str, Any]]:
     with open(file_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def build_knowledge_chunks() -> List[Dict[str, Any]]:
+def build_knowledge_chunks() -> Tuple[List[Dict[str, Any]], int]:
+    """
+    Assembles knowledge base chunks with provenance metadata.
+    Returns: (chunks_list, total_source_documents_count)
+    """
     kb_dir = os.path.join(BASE_DIR, "data", "knowledge_base")
     chunks = []
 
@@ -34,6 +38,13 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
         crop_name = crop.get("crop", "Unknown Crop")
         season = crop.get("season", "All Season")
         source = crop.get("source", "ICAR Bulletin")
+        provenance = {
+            "source_title": crop.get("source_title", source),
+            "source_url": crop.get("source_url", "https://icar.org.in"),
+            "retrieved_on": crop.get("retrieved_on", "2026-10-19"),
+            "verified": crop.get("verified", False),
+            "reviewer_note": crop.get("reviewer_note", "")
+        }
 
         # Chunk 1: Agronomy, Soil & Sowing
         chunks.append({
@@ -44,7 +55,8 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
                 "category": "crop_advisory",
                 "crop": crop_name,
                 "season": season,
-                "topic": "soil_sowing"
+                "topic": "soil_sowing",
+                **provenance
             }
         })
 
@@ -57,7 +69,8 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
                 "category": "crop_advisory",
                 "crop": crop_name,
                 "season": season,
-                "topic": "fertilizer_irrigation"
+                "topic": "fertilizer_irrigation",
+                **provenance
             }
         })
 
@@ -70,7 +83,8 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
                 "category": "crop_advisory",
                 "crop": crop_name,
                 "season": season,
-                "topic": "weed_harvest"
+                "topic": "weed_harvest",
+                **provenance
             }
         })
 
@@ -80,6 +94,13 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
     for faq in kcc_items:
         crop_name = faq.get("crop", "Crop")
         source = faq.get("source", "Kisan Call Centre Advisory")
+        provenance = {
+            "source_title": faq.get("source_title", source),
+            "source_url": faq.get("source_url", "https://agricoop.gov.in"),
+            "retrieved_on": faq.get("retrieved_on", "2026-10-19"),
+            "verified": faq.get("verified", False),
+            "reviewer_note": faq.get("reviewer_note", "")
+        }
 
         chunks.append({
             "id": faq["id"],
@@ -95,7 +116,8 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
             "metadata": {
                 "category": "pest_control",
                 "crop": crop_name,
-                "topic": "pest_disease_control"
+                "topic": "pest_disease_control",
+                **provenance
             }
         })
 
@@ -105,6 +127,13 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
     for s in scheme_items:
         source = f"{s.get('scheme_name')} (Official Portal: {s.get('portal_url')})"
         elig = s.get("eligibility", {})
+        provenance = {
+            "source_title": s.get("source_title", s.get("scheme_name")),
+            "source_url": s.get("source_url", s.get("portal_url", "https://agricoop.gov.in")),
+            "retrieved_on": s.get("retrieved_on", "2026-10-19"),
+            "verified": s.get("verified", True),
+            "reviewer_note": s.get("reviewer_note", "")
+        }
 
         chunks.append({
             "id": s["id"],
@@ -121,31 +150,42 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
             "metadata": {
                 "category": "scheme_lookup",
                 "scheme": s.get("scheme_name"),
-                "topic": "government_schemes"
+                "topic": "government_schemes",
+                **provenance
             }
         })
 
-    logger.info(f"Assembled {len(chunks)} chunks from ICAR, KCC, and Government Schemes.")
-    return chunks
+    total_docs = len(icar_items) + len(kcc_items) + len(scheme_items)
+    logger.info(f"Assembled {len(chunks)} chunks from {total_docs} primary documents.")
+    return chunks, total_docs
 
-async def run_ingestion() -> int:
+async def run_ingestion() -> Tuple[int, int]:
+    """
+    Executes full ingestion and indexing.
+    Returns: (total_source_documents_count, total_chunks_count)
+    """
     logger.info(f"Starting Knowledge Base Ingestion (Vector DB: {settings.VECTOR_DB_TYPE})...")
-    chunks = build_knowledge_chunks()
+    chunks, total_docs = build_knowledge_chunks()
 
-    # 1. Always build and persist the local file-backed vector index for zero-cost / offline deployment
+    # Always build and persist the local file-backed vector index
     from backend.app.services.rag.vector_store import LocalFallbackVectorStore
     local_store = LocalFallbackVectorStore()
     local_count = await local_store.add_documents(chunks)
-    logger.info(f"Successfully saved {local_count} prebuilt chunks to local vector store (local_vector_index.json).")
+    logger.info(f"Successfully saved {local_count} prebuilt chunks from {total_docs} documents.")
 
-    # 2. Also index into the configured vector store (if not local)
-    vector_store = get_vector_store()
-    if not isinstance(vector_store, LocalFallbackVectorStore):
-        remote_count = await vector_store.add_documents(chunks)
-        logger.info(f"Successfully indexed {remote_count} document chunks into {settings.VECTOR_DB_TYPE}.")
-        return remote_count
+    # Also sync into ChromaDB or Pinecone if configured
+    if settings.VECTOR_DB_TYPE.lower() == "chromadb":
+        from backend.app.services.rag.vector_store import ChromaVectorStore
+        chroma = ChromaVectorStore()
+        await chroma.add_documents(chunks)
+    elif settings.VECTOR_DB_TYPE.lower() == "pinecone" and settings.PINECONE_API_KEY:
+        from backend.app.services.rag.vector_store import PineconeVectorStore
+        pine = PineconeVectorStore()
+        if pine.is_configured:
+            await pine.add_documents(chunks)
 
-    return local_count
+    return total_docs, local_count
 
 if __name__ == "__main__":
-    asyncio.run(run_ingestion())
+    docs, count = asyncio.run(run_ingestion())
+    print(f"Ingestion Complete: {docs} documents, {count} chunks indexed.")

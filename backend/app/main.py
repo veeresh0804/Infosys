@@ -22,6 +22,13 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing Smart Farming Assistant backend...")
     await init_db()
     logger.info("Database initialized successfully.")
+    # Warm embedding model at startup so /api/health accurately reports loaded memory (Task 11)
+    try:
+        from backend.app.services.rag.embeddings import embedding_service
+        embedding_service.embed_query("warmup agricultural query")
+        logger.info("Embedding model warmed up.")
+    except Exception as e:
+        logger.warning(f"Embedding model warmup notice: {e}")
     yield
     logger.info("Shutting down backend...")
 
