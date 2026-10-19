@@ -1,0 +1,67 @@
+[
+  {
+    "id": "icar-crop-paddy-01",
+    "crop": "Paddy (Rice)",
+    "scientific_name": "Oryza sativa",
+    "season": "Kharif",
+    "soil_and_climate": "Clayey loam to silty clay soils with good water retention capacity. Optimum soil pH 5.5 to 7.0. Temperature range 22-32°C.",
+    "sowing_and_spacing": "Direct seeded: 40-50 kg/ha. Transplanted: 20-25 kg/ha. Spacing: 20 cm x 15 cm. Optimal nursery sowing is May-June, transplanting at 21-25 days old seedlings.",
+    "nutrient_management": "Recommended NPK: 120:60:40 kg/ha. Apply 50% N and full P & K as basal dose before final puddling. Remaining N in two equal splits at tillering and panicle initiation stages. Zinc sulfate @ 25 kg/ha in zinc deficient soils.",
+    "water_management": "Maintain shallow water depth of 2-5 cm from transplanting till dough stage. Drain water 10-12 days before harvest.",
+    "weed_control": "Pre-emergence application of Pretilachlor 50% EC @ 1000-1500 ml/ha at 3-5 days after transplanting in standing water.",
+    "harvesting": "Harvest when 80-85% grains in panicles turn golden yellow and grain moisture is around 20%.",
+    "source": "ICAR-Indian Institute of Rice Research (IIRR) Package of Practices 2023-24"
+  },
+  {
+    "id": "icar-crop-wheat-02",
+    "crop": "Wheat",
+    "scientific_name": "Triticum aestivum",
+    "season": "Rabi",
+    "soil_and_climate": "Well-drained fertile loamy to clay loam soils. Optimum pH 6.0 to 7.5. Cool winter climate with 15-20°C at vegetative growth and 25°C at maturity.",
+    "sowing_and_spacing": "Seed rate: 100-125 kg/ha for timely sown; 125-150 kg/ha for late sown. Spacing: 20-22.5 cm row to row. Optimal sowing window: First fortnight of November.",
+    "nutrient_management": "Recommended NPK: 120:60:40 kg/ha for irrigated conditions. 50% N + 100% P & K at sowing time. Remaining N in two equal splits after first and second irrigation.",
+    "water_management": "Critical irrigation stages: Crown Root Initiation (CRI) at 21 DAS (most critical), Tillering at 40-45 DAS, Late Jointing at 60-65 DAS, Flowering at 80-85 DAS, and Milking at 100-105 DAS.",
+    "weed_control": "Post-emergence spray of Sulfosulfuron 75% WG @ 33 g/ha + surfactant at 30-35 DAS for mixed weed control.",
+    "harvesting": "Harvest when straw becomes dry and golden brown, grains become hard with moisture content below 12-14%.",
+    "source": "ICAR-Indian Institute of Wheat and Barley Research (IIWBR) Advisory Bulletin"
+  },
+  {
+    "id": "icar-crop-tomato-03",
+    "crop": "Tomato",
+    "scientific_name": "Solanum lycopersicum",
+    "season": "Kharif / Rabi / Summer",
+    "soil_and_climate": "Well-drained sandy loam or clay loam rich in organic matter. Soil pH 6.0-7.0. Sensitive to frost; thrives in 21-28°C daytime temperature.",
+    "sowing_and_spacing": "Seed rate: 400-500 g/ha for open-pollinated; 120-150 g/ha for hybrids. Spacing: 60 cm x 45 cm for determinate varieties; 75 cm x 60 cm for indeterminate varieties.",
+    "nutrient_management": "FYM @ 20-25 tonnes/ha. NPK: 150:100:100 kg/ha for hybrids. Apply 50% N and full P & K as basal. Remaining N top-dressed in 2-3 equal splits at 30, 45, and 60 days after transplanting.",
+    "water_management": "Drip irrigation recommended. Water at 3-5 days interval during summer and 7-10 days interval during winter. Avoid water stagnation to prevent bacterial wilt.",
+    "weed_control": "Mulching with 25-30 micron silver-black UV polyethylene mulch suppresses weeds and conserves moisture.",
+    "harvesting": "Harvest at 'breaker stage' for long-distance transport, and at pink to red ripe stage for local retail markets.",
+    "source": "ICAR-Indian Institute of Horticultural Research (IIHR) Tomato Production Guide"
+  },
+  {
+    "id": "icar-crop-cotton-04",
+    "crop": "Cotton",
+    "scientific_name": "Gossypium hirsutum",
+    "season": "Kharif",
+    "soil_and_climate": "Deep black cotton soils (vertisols) or alluvial soils with high water retention. Soil pH 6.5-8.0. Requires long frost-free periods and warm sunny days (25-35°C).",
+    "sowing_and_spacing": "Seed rate: 2-2.5 kg/ha for Bt hybrids. Spacing: 90 cm x 60 cm or 120 cm x 45 cm depending on soil fertility and canopy.",
+    "nutrient_management": "NPK: 120:60:60 kg/ha. Split nitrogen into 3 equal doses: basal, squaring stage, and peak flowering stage. Foliar spray of 2% DAP or 1% KNO3 during boll development increases boll retention.",
+    "water_management": "Moisture stress at flowering and boll formation causes square and boll shedding. Avoid over-irrigation during early vegetative phase.",
+    "weed_control": "Pre-emergence Pendimethalin 38.7% CS @ 1.5-2.0 L/ha followed by inter-cultivation at 30 and 60 DAS.",
+    "harvesting": "Pick clean, fully opened bolls during dry morning hours. Keep picked cotton free of trash, dry leaves, and moisture.",
+    "source": "ICAR-Central Institute for Cotton Research (CICR) Technology Bulletin"
+  },
+  {
+    "id": "icar-crop-maize-05",
+    "crop": "Maize (Corn)",
+    "scientific_name": "Zea mays",
+    "season": "Kharif / Rabi",
+    "soil_and_climate": "Deep, fertile, well-drained loamy to sandy loam soils with pH 6.5-7.5. Maize cannot tolerate waterlogging. Warm temperature 21-30°C.",
+    "sowing_and_spacing": "Seed rate: 20 kg/ha for grain hybrids. Spacing: 60 cm x 20 cm at 3-5 cm depth.",
+    "nutrient_management": "NPK: 120:60:40 kg/ha. Apply 1/3 N and full P & K as basal dose. Apply 1/3 N at knee-high stage and remaining 1/3 N at tasseling stage.",
+    "water_management": "Critical stages for irrigation: Knee-high stage, Tasseling stage, and Silking/Grain-filling stage. Ensure effective field drainage during heavy rains.",
+    "weed_control": "Atrazine 50% WP @ 1.0-1.5 kg/ha applied as pre-emergence within 2-3 days of sowing.",
+    "harvesting": "Harvest when outer cob husk turns brown, grain moisture drops to 20-22%, and a black layer forms at the grain base.",
+    "source": "ICAR-Indian Institute of Maize Research (IIMR) Extension Bulletin"
+  }
+]

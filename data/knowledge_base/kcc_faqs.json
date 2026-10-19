@@ -1,0 +1,62 @@
+[
+  {
+    "id": "kcc-pest-paddy-stemborer-01",
+    "crop": "Paddy (Rice)",
+    "category": "pest_control",
+    "query": "How to control Yellow Stem Borer causing dead hearts and white ears in rice?",
+    "query_hi": "धान में तना छेदक (डेड हार्ट और सफेद बालियां) की रोकथाम कैसे करें?",
+    "query_kn": "ಭತ್ತದಲ್ಲಿ ಕಾಂಡ ಕೊರೆಯುವ ಹುಳುವಿನ ಹಾನಿಯನ್ನು ಹೇಗೆ ನಿಯಂತ್ರಿಸುವುದು?",
+    "symptoms": "Dead heart in vegetative stage (drying of central shoot); white head or empty chaffy panicle in reproductive stage.",
+    "management": "Install pheromone traps @ 8-10 traps/ha for monitoring. Biological: Release egg parasitoid Trichogramma japonicum @ 100,000/ha at 30, 37, and 44 DAT. Chemical control: Broadcast Chlorantraniliprole 0.4% GR @ 10 kg/ha or spray Cartap Hydrochloride 50% SP @ 1000 g/ha or Flubendiamide 39.35% SC @ 50 ml/ha in 500 liters of water per hectare.",
+    "preventive_measures": "Avoid excessive nitrogen application. Clip seedling leaf tips before transplanting to eliminate egg masses.",
+    "source": "Kisan Call Centre (KCC) Advisory / ICAR-IIRR Pest Management Guide"
+  },
+  {
+    "id": "kcc-pest-maize-fallarmyworm-02",
+    "crop": "Maize (Corn)",
+    "category": "pest_control",
+    "query": "How to manage Fall Armyworm (FAW) Spodoptera frugiperda in maize whorls?",
+    "query_hi": "मक्का में फॉल आर्मीवॉर्म (सैनिक कीट) का नियंत्रण कैसे करें?",
+    "query_kn": "ಮೆಕ್ಕೆಜೋಳದಲ್ಲಿ ಲದ್ದಿ ಹುಳು (ಫಾಲ್ ಆರ್ಮಿವರ್ಮ್) ಹಾನಿ ತಡೆಗಟ್ಟುವುದು ಹೇಗೆ?",
+    "symptoms": "Pin-hole damage on leaves, ragged elongated holes on whorl leaves, large piles of sawdust-like fecal matter inside central whorl.",
+    "management": "Early stage (5-30 days): Spray Bacillus thuringiensis (Bt) kurstaki formulation @ 2 g/L or Azadirachtin 1500 ppm @ 5 ml/L into the whorl. Mid/Late stage: Spray Emamectin benzoate 5% SG @ 0.4 g/L or Spinetoram 11.7% SC @ 0.5 ml/L or Chlorantraniliprole 18.5% SC @ 0.4 ml/L directing the spray directly into the whorl cone.",
+    "preventive_measures": "Deep summer plowing to expose pupae to birds. Intercropping maize with pulses (cowpea/pigeon pea). Handpicking egg masses in smallholder fields.",
+    "source": "Kisan Call Centre (KCC) Integrated Pest Management Advisory"
+  },
+  {
+    "id": "kcc-disease-tomato-leafcurl-03",
+    "crop": "Tomato",
+    "category": "pest_control",
+    "query": "Tomato leaves are curling upwards with yellow margins and stunted growth. What is the remedy?",
+    "query_hi": "टमाटर के पत्ते ऊपर की ओर मुड़ रहे हैं और पौधे बौने रह गए हैं, क्या उपाय करें?",
+    "query_kn": "ಟೊಮೆಟೊ ಎಲೆಗಳು ಮುದುರಿಕೊಂಡು ಹಳದಿಯಾಗುತ್ತಿವೆ, ಇದಕ್ಕೆ ಪರಿಹಾರವೇನು?",
+    "symptoms": "Severe curling, puckering, reduction of leaf lamina, yellowing of vein margins, bushy and stunted appearance caused by Tomato Leaf Curl Virus (ToLCV) transmitted by whitefly (Bemisia tabaci).",
+    "management": "Control the whitefly vector immediately: Install yellow sticky traps @ 25-30/ha. Spray Imidacloprid 17.8% SL @ 0.3 ml/L or Diafenthiuron 50% WP @ 1.2 g/L or Spiromesifen 22.9% SC @ 1 ml/L. Use Neem oil 10,000 ppm @ 2 ml/L as an organic deterrent.",
+    "preventive_measures": "Grow barrier crops like maize, sorghum, or pearl millet around the tomato plot. Use nursery nylon net (40-mesh) to raise virus-free seedlings. Uproot and burn severely infected plants.",
+    "source": "KCC Query Database / ICAR-IIHR Vegetable Pathology Department"
+  },
+  {
+    "id": "kcc-disease-wheat-rust-04",
+    "crop": "Wheat",
+    "category": "disease_management",
+    "query": "How to identify and control Yellow Rust (Stripe Rust) in wheat?",
+    "query_hi": "गेहूं में पीला रतुआ (येलो रस्ट) की पहचान और नियंत्रण कैसे करें?",
+    "query_kn": "ಗೋಧಿಯಲ್ಲಿ ಹಳದಿ ರಸ್ಟ್ ರೋಗ ನಿಯಂತ್ರಣ ಮಾಡುವುದು ಹೇಗೆ?",
+    "symptoms": "Bright yellow powder pustules arranged in parallel stripes along leaf veins. Powder stains fingers when touched.",
+    "management": "At first appearance of yellow pustules, immediately spray Propiconazole 25% EC (Tilt) @ 1 ml/L or Tebuconazole 25.9% EC @ 1 ml/L in 500 liters of water per hectare. Repeat spray after 15 days if cloudy weather persists.",
+    "preventive_measures": "Sow rust-resistant wheat varieties (e.g., HD 3086, DBW 187, DBW 222, PBW 725). Avoid delayed sowing after November 25.",
+    "source": "ICAR-IIWBR Karnal Rust Advisory / Kisan Call Centre Bulletin"
+  },
+  {
+    "id": "kcc-pest-cotton-bollworm-05",
+    "crop": "Cotton",
+    "category": "pest_control",
+    "query": "What are the chemical and bio-control measures for Pink Bollworm in cotton?",
+    "query_hi": "कपास में गुलाबी सुंडी (पिंक बॉलवर्म) का रोकथाम कैसे करें?",
+    "query_kn": "ಹತ್ತಿ ಬೆಳೆಯಲ್ಲಿ ಗುಲಾಬಿ ಕಾಯಿಕೊರೆಯುವ ಹುಳುವಿನ ನಿರ್ವಹಣೆ ಹೇಗೆ?",
+    "symptoms": "Rosetted flowers that fail to open properly; bore holes sealed with frass; damaged seeds and stained lint inside green bolls.",
+    "management": "Pheromone traps @ 12 traps/ha for mass trapping. Spray Profenofos 50% EC @ 2 ml/L or Chlorpyrifos 20% EC @ 2.5 ml/L or Thiodicarb 75% WP @ 2 g/L during peak emergence. For organic control, spray Neem seed kernel extract (NSKE 5%) @ 50 g/L.",
+    "preventive_measures": "Maintain a 'closed season' by terminating crop by December-January to prevent pest carryover. Avoid rationing.",
+    "source": "Kisan Call Centre Advisory / CICR Nagpur Integrated Pest Management Protocol"
+  }
+]

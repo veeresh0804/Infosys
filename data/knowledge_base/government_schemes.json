@@ -1,0 +1,96 @@
+[
+  {
+    "id": "scheme-pm-kisan-01",
+    "scheme_name": "Pradhan Mantri Kisan Samman Nidhi (PM-KISAN)",
+    "nodal_ministry": "Ministry of Agriculture and Farmers Welfare, Govt of India",
+    "category": "direct_income_support",
+    "summary": "Income support scheme providing Rs. 6,000 per year in three equal four-monthly installments of Rs. 2,000 each directly transferred to the bank accounts of eligible landholder farmer families.",
+    "eligibility": {
+      "target_group": "All landholding farmer families with cultivable landholding in their names.",
+      "exclusions": [
+        "Institutional landholders",
+        "Farmer families holding constitutional posts (former or present)",
+        "Former and present Ministers, MPs, MLAs, MLCs, Mayors, Chairpersons of District Panchayats",
+        "Serving or retired officers and employees of Central/State Govt Ministries/Offices/PSUs/Autonomous bodies (excluding Multi Tasking Staff / Class IV / Group D employees)",
+        "All superannuated/retired pensioners with monthly pension of Rs. 10,000 or more",
+        "All persons who paid Income Tax in last assessment year",
+        "Professionals like Doctors, Engineers, Lawyers, Chartered Accountants, and Architects"
+      ],
+      "documents_required": [
+        "Aadhaar Card (mandatory)",
+        "Citizenship proof",
+        "Landholding papers (RoR / Khatauni / Pahani)",
+        "Bank Account details linked with Aadhaar"
+      ]
+    },
+    "benefits": "Rs. 6,000 per annum paid in 3 installments of Rs. 2,000 every 4 months (April-July, August-November, December-March) via DBT.",
+    "application_process": "Farmers can register online at the PM-KISAN portal (pmkisan.gov.in) using 'Farmer Corner', or through Common Service Centres (CSCs) or State Nodal Officers.",
+    "portal_url": "https://pmkisan.gov.in"
+  },
+  {
+    "id": "scheme-pmfby-02",
+    "scheme_name": "Pradhan Mantri Fasal Bima Yojana (PMFBY)",
+    "nodal_ministry": "Ministry of Agriculture and Farmers Welfare, Govt of India",
+    "category": "crop_insurance",
+    "summary": "Comprehensive crop insurance scheme providing financial support to farmers suffering crop loss/damage arising out of non-preventable natural risks from pre-sowing to post-harvest.",
+    "eligibility": {
+      "target_group": "All farmers growing notified crops in notified areas including sharecroppers and tenant farmers. Voluntary for all farmers.",
+      "exclusions": [
+        "Crops not notified in the area by state government",
+        "Losses due to war, nuclear risks, malicious damage, theft, or domestic animals"
+      ],
+      "documents_required": [
+        "Aadhaar Card",
+        "Land Record (Pahani / RTC / Land Possession Certificate)",
+        "Sowing certificate issued by Patwari / Village Agriculture Worker / Revenue officer",
+        "Bank Passbook copy linked to Aadhaar"
+      ]
+    },
+    "benefits": "Maximum premium payable by farmers is only 2% for all Kharif food & oilseeds crops, 1.5% for all Rabi food & oilseeds crops, and 5% for annual commercial/horticultural crops. The remaining premium is shared 50:50 by Central and State Governments.",
+    "application_process": "Enrollment through National Crop Insurance Portal (pmfby.gov.in), authorized banks, or CSCs before cutoff date for Kharif (typically July 31) and Rabi (typically December 31).",
+    "portal_url": "https://pmfby.gov.in"
+  },
+  {
+    "id": "scheme-kcc-03",
+    "scheme_name": "Kisan Credit Card (KCC) Scheme",
+    "nodal_ministry": "Department of Financial Services, Ministry of Finance & MoA&FW",
+    "category": "credit_and_loans",
+    "summary": "Timely and hassle-free institutional short-term credit facility for farmers to meet cultivation expenses, post-harvest expenses, marketing loans, and working capital for maintenance of farm assets and allied activities (dairy, fisheries, poultry).",
+    "eligibility": {
+      "target_group": "Individual/joint farmers, owner cultivators, tenant farmers, oral lessees, sharecroppers, Self Help Groups (SHGs) or Joint Liability Groups (JLGs) of farmers.",
+      "exclusions": [
+        "Defaulters with existing unregularized institutional agricultural loans"
+      ],
+      "documents_required": [
+        "Filled application form",
+        "ID Proof (Aadhaar / Voter ID / Driving License)",
+        "Address Proof",
+        "Land ownership record / tenancy agreement",
+        "Passport size photographs"
+      ]
+    },
+    "benefits": "Credit limit up to Rs. 3 Lakh at an effective interest rate of 4% per annum (standard interest rate 9%, with 2% interest subvention by GoI and 3% prompt repayment incentive). Collateral-free loan up to Rs. 1.6 Lakh (extendable to Rs. 2 Lakh for tie-up arrangements).",
+    "application_process": "Apply at any commercial bank, Regional Rural Bank (RRB), or Cooperative Bank branch, or online through state agri-credit portals.",
+    "portal_url": "https://agricoop.nic.in"
+  },
+  {
+    "id": "scheme-soil-health-card-04",
+    "scheme_name": "Soil Health Card (SHC) Scheme",
+    "nodal_ministry": "Ministry of Agriculture and Farmers Welfare, Govt of India",
+    "category": "soil_and_fertilizer",
+    "summary": "Periodic assessment of farm soil fertility status across 12 parameters (Macro: N, P, K; Secondary: S; Micro: Zn, Fe, Cu, Mn, Bo; Physical: pH, EC, OC) along with customized dosage recommendations for crops.",
+    "eligibility": {
+      "target_group": "All farmers across all States and Union Territories in India.",
+      "exclusions": [
+        "None (universal entitlement for agricultural landholders)"
+      ],
+      "documents_required": [
+        "Farmer identification details (Aadhaar)",
+        "Survey number / plot identification of field sample"
+      ]
+    },
+    "benefits": "Free soil test report issued every 3 years providing exact nutrient deficiency analysis and crop-specific fertilizer and organic manure recommendations to reduce input costs and preserve soil health.",
+    "application_process": "Soil samples collected by State Agriculture Department field officers and Krishi Vigyan Kendras (KVKs). Farmers can download their card online using survey number at soilhealth.dac.gov.in.",
+    "portal_url": "https://soilhealth.dac.gov.in"
+  }
+]

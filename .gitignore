@@ -1,47 +1,48 @@
-# Environment and secrets
+# Environment & Secrets
 .env
 .env.*
 !.env.example
-*.key
-*.pem
+backend/.env
+config/.env
 
 # Python
+venv/
+backend/venv/
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+*.so
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
-env/
-ENV/
+.coverage
+htmlcov/
+*.log
 
-# Node / Next.js
+# Node & Next.js
 node_modules/
-.npm/
+frontend/node_modules/
 .next/
+frontend/.next/
 out/
-dist/
 build/
-coverage/
-*.tsbuildinfo
+dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
+.pnpm-debug.log*
 
-# IDE / editor
+# Database & runtime data
+*.db
+*.sqlite
+*.sqlite3
+data/sessions.db
+backend/data/sessions.db
+
+# Vector store cache
+data/chroma_db/
+backend/data/chroma_db/
+
+# IDE & OS
 .vscode/
 .idea/
-*.swp
-*.swo
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Logs and local data
-*.log
-*.sqlite3
