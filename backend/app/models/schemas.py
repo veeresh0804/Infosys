@@ -38,6 +38,28 @@ class FlaggedReviewModel(Base):
     retrieved_chunks = Column(JSON, nullable=True, default=list)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+class LLMCacheModel(Base):
+    __tablename__ = "llm_cache"
+
+    cache_key = Column(String(128), primary_key=True, index=True)
+    query = Column(Text, nullable=False)
+    language = Column(String(10), default="en")
+    full_answer = Column(Text, nullable=False)
+    short_answer = Column(Text, nullable=True)
+    provider = Column(String(32), default="cached")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class TTSCacheModel(Base):
+    __tablename__ = "tts_cache"
+
+    audio_hash = Column(String(128), primary_key=True, index=True)
+    text = Column(Text, nullable=False)
+    language = Column(String(10), default="hi")
+    speaker = Column(String(32), default="kavya")
+    audio_base64 = Column(Text, nullable=False)
+    engine = Column(String(32), default="cached")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
 # ==============================================================================
 # Pydantic Schemas
 # ==============================================================================

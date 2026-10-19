@@ -15,19 +15,21 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 8000
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
 
-    # Milestone 1: Speech & Translation (Sarvam AI + Whisper Fallback)
+    # Milestone 1: Speech & Translation (Sarvam AI + Groq Whisper Fallback)
+    SARVAM_ENABLED: bool = Field(default=True, description="Enable Sarvam AI API for Indic STT/TTS; set false to save credits")
     SARVAM_API_KEY: str = Field(default="", description="Sarvam AI API key for Indic STT/TTS/Translation")
     SARVAM_API_URL: str = "https://api.sarvam.ai"
-    OPENAI_API_KEY: str = Field(default="", description="OpenAI API key for Whisper STT fallback & optional LLM")
+    OPENAI_API_KEY: str = Field(default="", description="Optional OpenAI key (deprecated in favor of free Groq Whisper)")
 
     # Milestone 1: Hugging Face Models
+    ENABLE_HF_LOCAL: bool = Field(default=False, description="Set True for heavy local HF models; False fits in 512MB RAM using rule+LLM fallback")
     HF_TOKEN: str = Field(default="", description="Hugging Face API token (optional)")
     HF_INTENT_MODEL: str = "facebook/bart-large-mnli"
     HF_NER_MODEL: str = "dslim/bert-base-NER"
 
-    # Milestone 2: Vector DB
-    VECTOR_DB_TYPE: str = Field(default="pinecone", description="'pinecone' or 'chromadb'")
-    PINECONE_API_KEY: str = Field(default="", description="Pinecone API Key")
+    # Milestone 2: Vector DB (Default to local store for 100% free operation)
+    VECTOR_DB_TYPE: str = Field(default="local", description="'local', 'chromadb', or 'pinecone'")
+    PINECONE_API_KEY: str = Field(default="", description="Optional Pinecone API Key")
     PINECONE_INDEX_NAME: str = "agri-assistant"
     PINECONE_CLOUD: str = "aws"
     PINECONE_REGION: str = "us-east-1"
@@ -36,11 +38,12 @@ class Settings(BaseSettings):
 
     # Milestone 2: Embeddings & LLM
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
-    LLM_PROVIDER: str = Field(default="gemini", description="'gemini', 'groq', 'openai', or 'mock'")
-    GOOGLE_API_KEY: str = Field(default="", description="Google Gemini API key for free-tier RAG")
-    GEMINI_MODEL: str = "gemini-1.5-flash"
-    GROQ_API_KEY: str = Field(default="", description="Groq API key for free-tier RAG")
-    GROQ_MODEL: str = "llama-3.1-70b-versatile"
+    LLM_PROVIDER: str = Field(default="chain", description="'chain' (Gemini->Groq->Mock), 'gemini', 'groq', or 'mock'")
+    GOOGLE_API_KEY: str = Field(default="", description="Google Gemini API key for free-tier RAG (from Google AI Studio)")
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GROQ_API_KEY: str = Field(default="", description="Groq API key for free-tier RAG & Whisper (from Groq Console)")
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
 
     # Milestone 2: Live Data APIs
     DATA_GOV_IN_API_KEY: str = Field(default="", description="data.gov.in API Key for AGMARKNET")

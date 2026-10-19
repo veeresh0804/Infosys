@@ -43,6 +43,7 @@ export default function FarmerPage() {
   const [manualText, setManualText] = useState("");
   const [showTextInput, setShowTextInput] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [serverWarmingUp, setServerWarmingUp] = useState(false);
 
   // Audio refs
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -50,20 +51,60 @@ export default function FarmerPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const sessionIdRef = useRef("farmer-session-main");
 
-  // Load language preference from localStorage on mount
+  // Load language preference and ping backend on mount for sleeping free host warmup
   useEffect(() => {
     const savedLang = localStorage.getItem("kisan_farmer_lang") as LanguageCode;
     if (savedLang && (savedLang === "hi" || savedLang === "kn" || savedLang === "en")) {
       setLang(savedLang);
     }
+
+    // Ping /api/health to warm up sleeping free-tier host (e.g. Render 512MB web service)
+    const timer = setTimeout(() => setServerWarmingUp(true), 1500);
+    api.checkHealth()
+      .then(() => {
+        clearTimeout(timer);
+        setServerWarmingUp(false);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        setServerWarmingUp(false);
+      });
   }, []);
+
+  const speakWithBrowser = (text: string, language: LanguageCode) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setMicState("idle");
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const bcp47 = language === "hi" ? "hi-IN" : language === "kn" ? "kn-IN" : "en-IN";
+      utterance.lang = bcp47;
+
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find(v => v.lang.startsWith(language) || v.lang.replace("_", "-") === bcp47);
+      if (match) {
+        utterance.voice = match;
+      } else if (language === "kn") {
+        setErrorMessage("ಕನ್ನಡ ಧ್ವನಿ ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಲಭ್ಯವಿಲ್ಲ. ಪಠ್ಯವನ್ನು ಪರದೆಯ ಮೇಲೆ ಓದಿ. (Kannada voice not installed on device browser)");
+      }
+
+      utterance.onstart = () => setMicState("speaking");
+      utterance.onend = () => setMicState("idle");
+      utterance.onerror = () => setMicState("idle");
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      setMicState("idle");
+    }
+  };
 
   const changeLanguage = (newLang: LanguageCode) => {
     setLang(newLang);
     localStorage.setItem("kisan_farmer_lang", newLang);
     stopCurrentAudio();
     // Update session preference on backend silently
-    api.updateSession(sessionIdRef.current, { preferred_language: newLang }).catch(() => {});
+    api.updateSession(sessionIdRef.current, { preferred_language: newLang }).catch(() => { });
   };
 
   const t = (key: string) => getTranslation(lang, key);
@@ -136,7 +177,7 @@ export default function FarmerPage() {
       }
     };
 
-    audio.play().catch(() => {});
+    audio.play().catch(() => { });
   };
 
   // Speak friendly error message aloud
@@ -243,21 +284,22 @@ export default function FarmerPage() {
 
       setMessages((prev) => [...prev, assistantMsg]);
 
-      // Automatically synthesize & play answer aloud via Sarvam TTS
+      // Automatically synthesize & play answer aloud via Sarvam TTS or browser Web Speech fallback
       try {
         const audioB64 = await api.synthesizeSpeech(spokenText, lang);
         assistantMsg.audioBase64 = audioB64;
-        if (audioB64) {
+        if (audioB64 && audioB64.length > 200) {
           const played = await playAudioBase64(audioB64);
           if (!played) {
             setAutoplayBlocked(true);
           }
         } else {
-          setMicState("idle");
+          // Fallback to browser client-side Web Speech synthesis
+          speakWithBrowser(spokenText, lang);
         }
       } catch (audioErr) {
-        console.warn("TTS generation error:", audioErr);
-        setMicState("idle");
+        console.warn("TTS generation error, using browser speech synthesis fallback:", audioErr);
+        speakWithBrowser(spokenText, lang);
       }
     } catch (err: any) {
       console.error("Query pipeline failed:", err);
@@ -354,6 +396,34 @@ export default function FarmerPage() {
           </button>
         ))}
       </section>
+
+      {/* Free Tier Server Warm-Up Banner */}
+      {serverWarmingUp && (
+        <aside style={{
+          background: "rgba(245, 158, 11, 0.12)",
+          border: "1px solid #f59e0b",
+          color: "#b45309",
+          padding: "10px 16px",
+          borderRadius: "8px",
+          fontSize: "14px",
+          textAlign: "center",
+          margin: "8px auto 16px auto",
+          maxWidth: "600px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px"
+        }} role="status">
+          <span>🌱</span>
+          <span>
+            {lang === "kn"
+              ? "ಉಚಿತ ಸರ್ವರ್ ಸಕ್ರಿಯಗೊಳ್ಳುತ್ತಿದೆ (ಮೊದಲ ವಿನಂತಿಗೆ ಕೆಲವು ಸೆಕೆಂಡುಗಳು ಬೇಕಾಗಬಹುದು)..."
+              : lang === "hi"
+                ? "मुफ्त सर्वर चालू हो रहा है (पहली प्रतिक्रिया में कुछ सेकंड लग सकते हैं)..."
+                : "Waking up free cloud server (first request may take a few seconds)..."}
+          </span>
+        </aside>
+      )}
 
       {/* Friendly Error Banner with Voice Read-out */}
       {errorMessage && (

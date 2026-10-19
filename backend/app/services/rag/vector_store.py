@@ -225,27 +225,39 @@ class LocalFallbackVectorStore(BaseVectorStore):
             cls._instance._load_file()
         return cls._instance
 
-    def _file_path(self) -> str:
+    def _candidate_paths(self) -> List[str]:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        return os.path.join(base_dir, "data", "local_vector_index.json")
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return [
+            os.path.join(base_dir, "data", "local_vector_index.json"),
+            os.path.join(base_dir, "backend", "data", "local_vector_index.json"),
+            os.path.join(backend_dir, "data", "local_vector_index.json"),
+            os.path.join(".", "data", "local_vector_index.json"),
+        ]
 
     def _load_file(self):
-        path = self._file_path()
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    self._docs = json.load(f)
-            except Exception:
-                self._docs = []
+        for path in self._candidate_paths():
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        docs = json.load(f)
+                        if docs:
+                            self._docs = docs
+                            logger.info(f"Loaded {len(docs)} local vector index chunks from {path}")
+                            return
+                except Exception as e:
+                    logger.warning(f"Error reading vector index from {path}: {e}")
+        self._docs = []
 
     def _save_file(self):
-        path = self._file_path()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(self._docs, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"Failed to persist local vector index: {e}")
+        for path in self._candidate_paths()[:2]:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(self._docs, f, ensure_ascii=False, indent=2)
+                logger.info(f"Saved {len(self._docs)} vector index chunks to {path}")
+            except Exception as e:
+                logger.error(f"Failed to persist local vector index to {path}: {e}")
 
     async def add_documents(self, documents: List[Dict[str, Any]]) -> int:
         for d in documents:

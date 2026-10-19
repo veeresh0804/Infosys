@@ -50,6 +50,8 @@ class AgriculturalNERService:
         self._hf_loaded = False
 
     def _load_hf_pipeline(self):
+        if not settings.ENABLE_HF_LOCAL:
+            return
         if self._pipeline is not None or self._hf_loaded:
             return
         try:

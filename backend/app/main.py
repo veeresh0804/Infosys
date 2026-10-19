@@ -1,3 +1,8 @@
+import sys, os
+parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -45,23 +50,58 @@ app.include_router(sessions.router)
 app.include_router(ingestion.router)
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
-    return {"status": "healthy"}
+    import os
+    from backend.app.services.rag.embeddings import embedding_service
+    from backend.app.services.rag.vector_store import get_vector_store
+    from backend.app.services.nlp.sarvam_service import sarvam_service
+
+    mem_mb = 0.0
+    try:
+        import psutil
+        mem_mb = round(psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024), 2)
+    except Exception:
+        pass
+
+    vstore = get_vector_store()
+    chunk_count = vstore.count()
+
+    active_engines = {
+        "llm_primary": f"google_gemini_{settings.GEMINI_MODEL}" if (settings.GOOGLE_API_KEY and not settings.GOOGLE_API_KEY.startswith("your_")) else "unconfigured",
+        "llm_secondary": f"groq_{settings.GROQ_MODEL}" if (settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("your_")) else "unconfigured",
+        "llm_fallback": "domain_grounded_mock_engine",
+        "stt_primary": "sarvam_saaras" if (settings.SARVAM_ENABLED and sarvam_service.is_configured) else ("circuit_broken" if sarvam_service.circuit_broken else "disabled"),
+        "stt_secondary": f"groq_whisper_{settings.GROQ_WHISPER_MODEL}" if (settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("your_")) else "mock_whisper_fallback",
+        "tts_primary": "sarvam_bulbul" if (settings.SARVAM_ENABLED and sarvam_service.is_configured) else "fallback_browser_speech",
+        "translation": "sarvam_mayura" if (settings.SARVAM_ENABLED and sarvam_service.is_configured) else "free_llm_chain",
+        "embeddings": embedding_service.engine_used,
+        "vector_store": f"{settings.VECTOR_DB_TYPE} ({chunk_count} chunks indexed)",
+        "weather": settings.WEATHER_PROVIDER,
+        "mandi": "data.gov.in AGMARKNET" if settings.DATA_GOV_IN_API_KEY else "sample_apmc_mock",
+        "schemes": "rule_based_engine"
+    }
+
+    return {
+        "status": "healthy",
+        "free_tier_mode": True,
+        "memory_rss_mb": mem_mb,
+        "memory_fit_512mb": mem_mb < 512.0,
+        "active_engines": active_engines
+    }
 
 @app.get("/")
 async def root_status():
+    health = await health_check()
     return {
         "status": "online",
-        "service": "AI-Driven Smart Farming Assistant Backend",
-        "milestones": ["Milestone 1: NLP & Multilingual Processing", "Milestone 2: Agricultural Knowledge Base & RAG Integration"],
-        "active_configuration": {
-            "vector_db": settings.VECTOR_DB_TYPE,
-            "llm_provider": settings.LLM_PROVIDER,
-            "weather_provider": settings.WEATHER_PROVIDER,
-            "sarvam_stt_tts": "Configured" if settings.SARVAM_API_KEY else "Mock Mode (Ready for key)",
-            "openai_fallback": "Configured" if settings.OPENAI_API_KEY else "Mock Mode (Ready for key)",
-            "gemini_api": "Configured" if settings.GOOGLE_API_KEY else "Mock Mode (Ready for key)"
-        },
+        "service": "AI-Driven Smart Farming Assistant Backend (Free Tiers Edition)",
+        "milestones": [
+            "Milestone 1: NLP & Multilingual Processing (Free Tier & Client Voice)",
+            "Milestone 2: Agricultural Knowledge Base & RAG Integration (FastEmbed ONNX & Gemini/Groq)"
+        ],
+        "active_configuration": health["active_engines"],
+        "memory_rss_mb": health["memory_rss_mb"],
         "docs_url": "/docs"
     }
 

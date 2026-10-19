@@ -1,6 +1,7 @@
 import re
 import logging
 from typing import Tuple, Optional
+from backend.app.config import settings
 from backend.app.services.nlp.sarvam_service import sarvam_service
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,22 @@ class TranslationService:
         if detected_lang.startswith("en"):
             return text.strip(), "en", "passthrough"
 
-        translated_text, engine = await sarvam_service.translate(
+        # 1. Try Sarvam Mayura if enabled
+        if settings.SARVAM_ENABLED and sarvam_service.is_configured and not sarvam_service.circuit_broken:
+            try:
+                translated_text, engine = await sarvam_service.translate(
+                    text=text,
+                    source_language=detected_lang,
+                    target_language="en"
+                )
+                if not "mock" in engine:
+                    return translated_text, detected_lang, engine
+            except Exception as e:
+                logger.warning(f"Sarvam translation failed ({e}). Falling back to free LLM chain.")
+
+        # 2. Free LLM chain translation fallback (Gemini / Groq)
+        from backend.app.services.rag.rag_engine import rag_engine
+        translated_text, engine = await rag_engine.translate_text(
             text=text,
             source_language=detected_lang,
             target_language="en"
@@ -79,7 +95,22 @@ class TranslationService:
         if target_language.startswith("en"):
             return canonical_text, "passthrough"
 
-        translated_text, engine = await sarvam_service.translate(
+        # 1. Try Sarvam Mayura if enabled
+        if settings.SARVAM_ENABLED and sarvam_service.is_configured and not sarvam_service.circuit_broken:
+            try:
+                translated_text, engine = await sarvam_service.translate(
+                    text=canonical_text,
+                    source_language="en",
+                    target_language=target_language
+                )
+                if not "mock" in engine:
+                    return translated_text, engine
+            except Exception as e:
+                logger.warning(f"Sarvam back-translation failed ({e}). Falling back to free LLM chain.")
+
+        # 2. Free LLM chain translation fallback
+        from backend.app.services.rag.rag_engine import rag_engine
+        translated_text, engine = await rag_engine.translate_text(
             text=canonical_text,
             source_language="en",
             target_language=target_language

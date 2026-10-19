@@ -51,7 +51,10 @@ class IntentClassifierService:
         self._hf_available = False
 
     def _load_hf_pipeline(self):
-        """Lazy load Hugging Face pipeline when first requested."""
+        """Lazy load Hugging Face pipeline only when explicitly enabled for local development."""
+        if not settings.ENABLE_HF_LOCAL:
+            return
+
         if self._pipeline is not None or self._hf_available:
             return
 

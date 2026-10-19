@@ -133,20 +133,35 @@ npm run dev
 ---
 
 ## 🧪 Automated Testing
-Run the comprehensive test suite verifying all Milestone 1 & 2 components:
+Run the comprehensive test suite verifying all components across free tiers and local fallbacks:
 ```bash
-c:\Users\manoh\Desktop\Infosys\backend\venv\Scripts\python.exe -u backend/tests/test_endpoints.py
+python -u backend/tests/test_endpoints.py
 ```
 This suite automatically exercises:
-1. Root health & provider configuration
-2. Language detection and translation (Hindi/Kannada -> Canonical English)
-3. Intent classification and Agricultural Named Entity Recognition
+1. Root health & active engine provider list (`/api/health`)
+2. Free translation pipeline (Indic -> Canonical English)
+3. Intent classification and Agricultural Named Entity Recognition (Rule/LLM fallback)
 4. Live Open-Meteo weather advisory
-5. AGMARKNET Mandi price retrieval
+5. AGMARKNET Mandi price retrieval (Live / Sample APMC fallback)
 6. Government scheme eligibility evaluation (PM-KISAN, PMFBY, KCC, Soil Health Card)
-7. End-to-end Hindi query pipeline with knowledge-base chunk retrieval & answer synthesis
-8. End-to-end Kannada query pipeline
-9. Session state persistence and low-confidence human review queuing in SQLite.
+7. End-to-end Hindi query pipeline with FastEmbed ONNX retrieval & direct answer synthesis
+8. End-to-end Kannada query pipeline with direct answer synthesis
+9. Session state persistence and 24-hour SQLite query caching.
+
+---
+
+## 💰 Free Tier Quota Budget & Failover Matrix
+
+| Provider / Service | Free Tier Limits | What the App Does When Quota is Exhausted | Where to Get Free Key |
+|---|---|---|---|
+| **Google Gemini (`gemini-2.5-flash`)** | 15 RPM, 1,500 RPD, 1M TPM | Automatically fails over to Groq free tier with exponential backoff. Logs warning when reaching 85% of limit. | [Google AI Studio](https://aistudio.google.com/) (No credit card) |
+| **Groq (`llama-3.3-70b-versatile`)** | 30 RPM, 14,400 RPD, 6,000 TPM | Automatically fails over to local domain-grounded synthesis mock. | [Groq Console](https://console.groq.com/keys) (No credit card) |
+| **Groq Whisper (`whisper-large-v3-turbo`)** | Free tier access via Groq API | Falls back to client-side browser Web Speech API (`SpeechRecognition`). | [Groq Console](https://console.groq.com/keys) |
+| **Sarvam AI (Saaras STT & Bulbul TTS)** | One-time signup trial credits | Circuit breaker trips upon HTTP 402/403/429; permanently fails over to Groq Whisper & browser `speechSynthesis` without crashing. | [Sarvam Dashboard](https://dashboard.sarvam.ai/) |
+| **Local Vector Store (`fastembed` ONNX)** | Unlimited (100% local, runs in < 50MB RAM) | Always operational; no quota limit. Prebuilt 50 chunks index committed to repo. | No key required |
+| **Open-Meteo Weather** | Up to 10,000 calls/day for non-commercial educational use | Falls back to seasonal agro-meteorological advisory. | No key required |
+| **data.gov.in AGMARKNET** | Free government key | Displays clearly-labeled sample APMC mandi prices with sample badge. | [data.gov.in](https://data.gov.in/) |
+| **SQLite Query Cache** | Local database (24-hour cache TTL) | Repeated demo questions are served from cache at 0 API calls. | Built-in |
 
 ---
 

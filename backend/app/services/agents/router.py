@@ -43,6 +43,8 @@ class AgentRouter:
         live_data = None
         sub_agent_name = intent
 
+        target_lang = detected_language if detected_language in ["hi", "kn"] else farmer_profile.get("preferred_language", "hi")
+
         if intent == "market_prices":
             answer_canonical, retrieved_chunks, live_data = await market_price_agent.execute(
                 canonical_query, farmer_profile, entities
@@ -53,7 +55,7 @@ class AgentRouter:
             )
         elif intent == "pest_control":
             answer_canonical, retrieved_chunks, live_data = await pest_control_agent.execute(
-                canonical_query, farmer_profile
+                canonical_query, farmer_profile, target_language=target_lang
             )
         elif intent == "scheme_lookup":
             answer_canonical, retrieved_chunks, live_data = await scheme_lookup_agent.execute(
@@ -63,7 +65,7 @@ class AgentRouter:
             # Default to crop advisory
             sub_agent_name = "crop_advisory"
             answer_canonical, retrieved_chunks, live_data = await crop_advisory_agent.execute(
-                canonical_query, farmer_profile
+                canonical_query, farmer_profile, target_language=target_lang
             )
 
         # 3. Response Quality Scoring & Human Review Flagging
@@ -93,16 +95,19 @@ class AgentRouter:
         # 4. Generate Short Answer (for farmer voice & concise card display)
         short_answer_canonical = self._extract_short_answer(answer_canonical, sub_agent_name, live_data)
 
-        # 5. Back-translation to farmer's language
-        target_lang = detected_language if detected_language in ["hi", "kn"] else farmer_profile.get("preferred_language", "hi")
-        answer_translated, _ = await translation_service.from_canonical(
-            canonical_text=answer_canonical,
-            target_language=target_lang
-        )
-        short_answer_translated, _ = await translation_service.from_canonical(
-            canonical_text=short_answer_canonical,
-            target_language=target_lang
-        )
+        # 5. Direct translation reuse or back-translation
+        if live_data and live_data.get("direct_translated_answer") and target_lang in ["hi", "kn"]:
+            answer_translated = live_data["direct_translated_answer"]
+            short_answer_translated = live_data.get("direct_translated_short") or self._extract_short_answer(answer_translated, sub_agent_name, live_data)
+        else:
+            answer_translated, _ = await translation_service.from_canonical(
+                canonical_text=answer_canonical,
+                target_language=target_lang
+            )
+            short_answer_translated, _ = await translation_service.from_canonical(
+                canonical_text=short_answer_canonical,
+                target_language=target_lang
+            )
 
         return QueryPipelineResponse(
             session_id=session_id,

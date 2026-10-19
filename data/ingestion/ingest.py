@@ -129,12 +129,23 @@ def build_knowledge_chunks() -> List[Dict[str, Any]]:
     return chunks
 
 async def run_ingestion() -> int:
-    logger.info(f"Starting Knowledge Base Ingestion for Vector DB type: {settings.VECTOR_DB_TYPE}...")
+    logger.info(f"Starting Knowledge Base Ingestion (Vector DB: {settings.VECTOR_DB_TYPE})...")
     chunks = build_knowledge_chunks()
+
+    # 1. Always build and persist the local file-backed vector index for zero-cost / offline deployment
+    from backend.app.services.rag.vector_store import LocalFallbackVectorStore
+    local_store = LocalFallbackVectorStore()
+    local_count = await local_store.add_documents(chunks)
+    logger.info(f"Successfully saved {local_count} prebuilt chunks to local vector store (local_vector_index.json).")
+
+    # 2. Also index into the configured vector store (if not local)
     vector_store = get_vector_store()
-    count = await vector_store.add_documents(chunks)
-    logger.info(f"Successfully indexed {count} document chunks into vector database.")
-    return count
+    if not isinstance(vector_store, LocalFallbackVectorStore):
+        remote_count = await vector_store.add_documents(chunks)
+        logger.info(f"Successfully indexed {remote_count} document chunks into {settings.VECTOR_DB_TYPE}.")
+        return remote_count
+
+    return local_count
 
 if __name__ == "__main__":
     asyncio.run(run_ingestion())

@@ -169,6 +169,12 @@ export const api = {
     return res.json();
   },
 
+  async checkHealth(): Promise<any> {
+    const res = await fetch(`${API_BASE}/api/health`);
+    if (!res.ok) throw new Error("Health check failed");
+    return res.json();
+  },
+
   async getFlaggedReviews(): Promise<any[]> {
     const res = await fetch(`${API_BASE}/api/rag/flagged-reviews`);
     if (!res.ok) throw new Error("Failed to load flagged reviews");

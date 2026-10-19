@@ -7,41 +7,68 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """
-    Embedding service using sentence-transformers/all-MiniLM-L6-v2.
-    Produces 384-dimensional dense vectors for semantic search in Pinecone and ChromaDB.
+    Lightweight embedding service using fastembed (ONNX runtime) with sentence-transformers/all-MiniLM-L6-v2.
+    Produces 384-dimensional dense vectors fitting in < 512 MB RAM without torch.
     """
 
     def __init__(self):
         self.model_name = settings.EMBEDDING_MODEL_NAME
-        self._model = None
+        self._fastembed_model = None
+        self._st_model = None
         self._loaded = False
+        self.engine_used = "uninitialized"
 
     def _load_model(self):
-        if self._model is not None or self._loaded:
+        if self._loaded:
             return
+
+        # 1. Primary: FastEmbed (ONNX Runtime, no PyTorch needed, <50MB RAM)
+        try:
+            from fastembed import TextEmbedding
+            logger.info("Loading FastEmbed ONNX embedding model (sentence-transformers/all-MiniLM-L6-v2)...")
+            self._fastembed_model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            self._loaded = True
+            self.engine_used = "fastembed_onnx"
+            logger.info("FastEmbed ONNX model loaded successfully.")
+            return
+        except Exception as e:
+            logger.warning(f"FastEmbed not available ({e}). Trying SentenceTransformers...")
+
+        # 2. Secondary: SentenceTransformer (if installed locally)
         try:
             from sentence_transformers import SentenceTransformer
             logger.info(f"Loading SentenceTransformer embedding model: {self.model_name}...")
-            self._model = SentenceTransformer(self.model_name)
+            self._st_model = SentenceTransformer(self.model_name)
             self._loaded = True
+            self.engine_used = "sentence_transformers"
             logger.info("SentenceTransformer model loaded successfully.")
+            return
         except Exception as e:
-            logger.warning(f"Could not load SentenceTransformer ({self.model_name}): {e}. Using deterministic hashing embedding fallback.")
-            self._loaded = True
+            logger.warning(f"SentenceTransformers not available ({e}). Using deterministic token hashing fallback.")
+
+        # 3. Fallback: Token hashing
+        self._loaded = True
+        self.engine_used = "token_hash_fallback"
 
     def embed_text(self, text: str) -> List[float]:
         """
         Embeds a single string into a 384-dimensional vector.
         """
         self._load_model()
-        if self._model is not None:
+        if self._fastembed_model is not None:
             try:
-                emb = self._model.encode(text, convert_to_numpy=True)
-                return emb.tolist()
+                embeddings = list(self._fastembed_model.embed([text]))
+                return [round(float(v), 6) for v in embeddings[0]]
+            except Exception as e:
+                logger.error(f"Error encoding with FastEmbed: {e}")
+
+        if self._st_model is not None:
+            try:
+                emb = self._st_model.encode(text, convert_to_numpy=True)
+                return [round(float(v), 6) for v in emb.tolist()]
             except Exception as e:
                 logger.error(f"Error encoding with SentenceTransformer: {e}")
 
-        # Deterministic 384-dimensional pseudo-embedding fallback
         return self._fallback_embed(text)
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -49,10 +76,17 @@ class EmbeddingService:
         Embeds multiple documents.
         """
         self._load_model()
-        if self._model is not None:
+        if self._fastembed_model is not None:
             try:
-                embs = self._model.encode(texts, convert_to_numpy=True)
-                return embs.tolist()
+                embeddings = list(self._fastembed_model.embed(texts))
+                return [[round(float(v), 6) for v in emb] for emb in embeddings]
+            except Exception as e:
+                logger.error(f"Error batch encoding with FastEmbed: {e}")
+
+        if self._st_model is not None:
+            try:
+                embs = self._st_model.encode(texts, convert_to_numpy=True)
+                return [[round(float(v), 6) for v in emb] for emb in embs.tolist()]
             except Exception as e:
                 logger.error(f"Error batch encoding with SentenceTransformer: {e}")
 
