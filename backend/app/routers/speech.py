@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/speech", tags=["Speech Processing"])
 
 from fastapi.responses import JSONResponse
-from backend.app.exceptions import STTUnavailableError
 
 @router.post("/transcribe")
 async def transcribe_audio(

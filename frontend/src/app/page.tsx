@@ -427,17 +427,22 @@ export default function FarmerPage() {
       {/* Top Banner & Language Selector */}
       <header className="farmer-top-nav">
         <div className="farmer-brand-block">
-          <h1 className="farmer-app-name">🌱 {t("app_title")}</h1>
-          <p className="farmer-app-tagline">{t("app_subtitle")}</p>
+          <h1 className="farmer-app-name" data-testid="app-title">🌱 {t("app_title")}</h1>
+          <p className="farmer-app-tagline" data-testid="app-tagline">{t("app_subtitle")}</p>
         </div>
 
-        <Link href="/dev" className="farmer-dev-link" title="Open Developer Dashboard">
+        <Link
+          href="/dev"
+          className="farmer-dev-link"
+          title="Open Developer Dashboard"
+          data-testid="dev-dashboard-link"
+        >
           {t("dev_link")}
         </Link>
       </header>
 
       {/* Language Buttons: Large, Thumb-friendly, In Native Script */}
-      <section className="farmer-lang-selector-strip" aria-label="Language Selector">
+      <section className="farmer-lang-selector-strip" aria-label="Language Selector" data-testid="language-selector">
         {LANGUAGE_OPTIONS.map((opt) => (
           <button
             key={opt.code}
@@ -445,6 +450,7 @@ export default function FarmerPage() {
             onClick={() => changeLanguage(opt.code)}
             className={`farmer-lang-button ${lang === opt.code ? "selected" : ""}`}
             aria-pressed={lang === opt.code}
+            data-testid={`lang-${opt.code}`}
           >
             <span className="lang-native-text">{opt.nativeLabel}</span>
             <span className="lang-sub-label">{opt.englishLabel}</span>
@@ -468,7 +474,7 @@ export default function FarmerPage() {
           alignItems: "center",
           justifyContent: "center",
           gap: "8px"
-        }} role="status">
+        }} role="status" data-testid="server-warming-banner">
           <span>🌱</span>
           <span>
             {lang === "kn"
@@ -482,10 +488,10 @@ export default function FarmerPage() {
 
       {/* Friendly Error Banner with Voice Read-out */}
       {errorMessage && (
-        <aside className="farmer-error-banner" role="alert">
+        <aside className="farmer-error-banner" role="alert" data-testid="error-banner">
           <AlertIcon size={32} className="error-icon" />
           <div className="error-text-wrap">
-            <p className="error-message-text">{errorMessage}</p>
+            <p className="error-message-text" data-testid="error-message">{errorMessage}</p>
             <button
               type="button"
               onClick={() => speakErrorMessage(errorMessage)}
@@ -499,7 +505,7 @@ export default function FarmerPage() {
 
       {/* Autoplay blocked prompt */}
       {autoplayBlocked && (
-        <aside className="farmer-notice-banner" role="status">
+        <aside className="farmer-notice-banner" role="status" data-testid="autoplay-banner">
           <SpeakerIcon size={28} />
           <span>Tap to hear the advice aloud:</span>
           <button
@@ -527,6 +533,7 @@ export default function FarmerPage() {
               onClick={startRecording}
               className="farmer-mic-btn idle"
               aria-label={t("mic_idle")}
+              data-testid="mic-button"
             >
               <MicIcon size={56} className="mic-svg" />
             </button>
@@ -563,8 +570,8 @@ export default function FarmerPage() {
           )}
 
           {/* Current State Label (in selected native language) */}
-          <div className="mic-state-label-box">
-            {micState === "idle" && <p className="mic-state-text idle">{t("mic_idle")}</p>}
+          <div className="mic-state-label-box" data-testid="mic-state-label">
+            {micState === "idle" && <p className="mic-state-text idle" data-testid="mic-state-idle">{t("mic_idle")}</p>}
             {micState === "listening" && <p className="mic-state-text listening">{t("mic_listening")}</p>}
             {micState === "thinking" && <p className="mic-state-text thinking">{t("mic_thinking")}</p>}
             {micState === "speaking" && (
@@ -585,10 +592,10 @@ export default function FarmerPage() {
 
       {/* Visual Answer Card: Formatted for Low Literacy (Weather / Mandi / Advisory) */}
       {lastAssistantMessage && (
-        <section className="farmer-answer-card" aria-live="polite">
+        <section className="farmer-answer-card" aria-live="polite" data-testid="answer-card">
           {/* Weather Visual Widget */}
           {lastAssistantMessage.liveData?.weather && (
-            <div className="farmer-visual-weather-box">
+            <div className="farmer-visual-weather-box" data-testid="weather-widget">
               <div className="weather-top-row">
                 <div className="weather-icon-symbol">🌦️</div>
                 <div className="weather-main-digits">
@@ -609,7 +616,7 @@ export default function FarmerPage() {
 
           {/* Market Price Visual Widget */}
           {lastAssistantMessage.liveData?.mandi_prices && lastAssistantMessage.liveData.mandi_prices.length > 0 && (
-            <div className="farmer-visual-mandi-box">
+            <div className="farmer-visual-mandi-box" data-testid="mandi-widget">
               {(() => {
                 const topMandi = lastAssistantMessage.liveData.mandi_prices[0];
                 return (
@@ -665,7 +672,7 @@ export default function FarmerPage() {
               </div>
             )}
 
-            <p className="farmer-answer-text">
+            <p className="farmer-answer-text" data-testid="answer-text">
               {lastAssistantMessage.isExpanded
                 ? lastAssistantMessage.fullText || lastAssistantMessage.text
                 : lastAssistantMessage.shortText || lastAssistantMessage.text}
@@ -701,6 +708,7 @@ export default function FarmerPage() {
                 type="button"
                 onClick={() => toggleExpand(lastAssistantMessage.id)}
                 className="farmer-btn-expand"
+                data-testid="expand-answer"
               >
                 {lastAssistantMessage.isExpanded ? t("btn_show_less") : `▼ ${t("btn_read_more")}`}
               </button>
@@ -739,8 +747,8 @@ export default function FarmerPage() {
       )}
 
       {/* Picture Tiles for Common Agricultural Topics */}
-      <section className="farmer-tiles-section" aria-label="Topic Selection">
-        <h2 className="tiles-section-heading">{t("quick_topics")}</h2>
+      <section className="farmer-tiles-section" aria-label="Topic Selection" data-testid="topic-tiles">
+        <h2 className="tiles-section-heading" data-testid="tiles-heading">{t("quick_topics")}</h2>
         <div className="farmer-tiles-grid">
           {TOPIC_TILES.map((tile) => (
             <button
@@ -749,6 +757,7 @@ export default function FarmerPage() {
               onClick={() => handleTileClick(tile.id, tile.prompt)}
               className="farmer-topic-tile"
               aria-label={tile.label}
+              data-testid={`topic-tile-${tile.id}`}
             >
               <div className="tile-icon-bubble">{tile.icon}</div>
               <span className="tile-caption">{tile.label}</span>
@@ -760,10 +769,10 @@ export default function FarmerPage() {
       {/* Optional Conversation History (Collapsible Fallback for Text Users) */}
       {messages.length > 1 && (
         <section className="farmer-history-section">
-          <h3 className="farmer-history-heading">📜 {t("chat_history_title")}</h3>
-          <div className="farmer-history-list">
+          <h3 className="farmer-history-heading" data-testid="chat-history-heading">📜 {t("chat_history_title")}</h3>
+          <div className="farmer-history-list" data-testid="chat-history">
             {messages.slice(1).map((msg) => (
-              <div key={msg.id} className={`farmer-chat-bubble ${msg.sender}`}>
+              <div key={msg.id} className={`farmer-chat-bubble ${msg.sender}`} data-testid="chat-bubble">
                 <p className="bubble-text">{msg.shortText || msg.text}</p>
                 {msg.sender === "assistant" && (
                   <button
@@ -795,6 +804,7 @@ export default function FarmerPage() {
             type="button"
             onClick={() => setShowTextInput(true)}
             className="farmer-toggle-text-btn"
+            data-testid="text-input-toggle"
           >
             ⌨️ {t("text_input_placeholder")}
           </button>
@@ -815,14 +825,22 @@ export default function FarmerPage() {
               onChange={(e) => setManualText(e.target.value)}
               placeholder={t("text_input_placeholder")}
               className="farmer-input-field"
+              data-testid="text-input"
+              aria-label={t("text_input_placeholder")}
             />
-            <button type="submit" disabled={!manualText.trim()} className="farmer-send-btn">
+            <button
+              type="submit"
+              disabled={!manualText.trim()}
+              className="farmer-send-btn"
+              data-testid="send-button"
+            >
               {t("send_button")}
             </button>
             <button
               type="button"
               onClick={() => setShowTextInput(false)}
               className="farmer-cancel-text-btn"
+              data-testid="cancel-text-input"
             >
               ✕
             </button>

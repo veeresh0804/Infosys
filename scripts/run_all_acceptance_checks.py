@@ -1,8 +1,6 @@
 import sys
 import os
 import io
-import time
-import json
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 

@@ -1,9 +1,6 @@
-import logging
 from typing import Dict, Any, Tuple, List
 from backend.app.services.live_data.weather_service import weather_service
 from backend.app.models.schemas import RetrievedChunk
-
-logger = logging.getLogger(__name__)
 
 class WeatherAgent:
     """

@@ -75,6 +75,12 @@ Infosys/
 │   │       └── api.ts                  # Typed frontend API client
 │   ├── package.json
 │   └── tsconfig.json
+├── dashboard/                          # Streamlit extension-worker console
+│   ├── app.py                          # Shell, KPIs, Ask tab & review queue
+│   ├── api_client.py                   # Typed REST client for the backend API
+│   ├── ui.py                           # Shared theme and render helpers
+│   ├── views/                          # Live data, knowledge base & farmer session tabs
+│   └── .streamlit/config.toml          # Green agricultural theme
 ├── config/
 │   └── .env.example                    # Root master configuration reference
 └── README.md
@@ -125,8 +131,18 @@ npm install
 npm run dev
 ```
 
-### 3. Open in Browser
+### 3. Extension Worker Dashboard (Streamlit)
+```bash
+# Open a third terminal, from the project root:
+cd dashboard
+..\backend\venv\Scripts\python.exe -m pip install -r requirements.txt
+..\backend\venv\Scripts\streamlit.exe run app.py
+```
+The dashboard runs on [http://localhost:8501](http://localhost:8501) and is a thin REST client over the same FastAPI backend. See [dashboard/README.md](dashboard/README.md) for the feature tour and troubleshooting.
+
+### 4. Open in Browser
 - **Farmer Test UI**: [http://localhost:3000](http://localhost:3000)
+- **Extension Worker Dashboard**: [http://localhost:8501](http://localhost:8501)
 - **FastAPI Auto-Generated Swagger Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **FastAPI ReDoc**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 

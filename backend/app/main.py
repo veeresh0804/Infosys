@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import settings
 from backend.app.database import init_db
-from backend.app.routers import speech, nlp, rag, live_data, sessions, ingestion
+from backend.app.routers import speech, nlp, rag, live_data, sessions, ingestion, telemetry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,11 +55,11 @@ app.include_router(rag.router)
 app.include_router(live_data.router)
 app.include_router(sessions.router)
 app.include_router(ingestion.router)
+app.include_router(telemetry.router)
 
 @app.get("/health")
 @app.get("/api/health")
 async def health_check():
-    import os
     from backend.app.services.rag.embeddings import embedding_service
     from backend.app.services.rag.vector_store import get_vector_store
     from backend.app.services.nlp.sarvam_service import sarvam_service

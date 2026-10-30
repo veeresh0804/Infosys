@@ -10,7 +10,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from backend.app.services.rag.vector_store import get_vector_store
 from backend.app.config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -175,8 +174,8 @@ async def run_ingestion() -> Tuple[int, int]:
 
     # Also sync into ChromaDB or Pinecone if configured
     if settings.VECTOR_DB_TYPE.lower() == "chromadb":
-        from backend.app.services.rag.vector_store import ChromaVectorStore
-        chroma = ChromaVectorStore()
+        from backend.app.services.rag.vector_store import ChromaDBVectorStore
+        chroma = ChromaDBVectorStore()
         await chroma.add_documents(chunks)
     elif settings.VECTOR_DB_TYPE.lower() == "pinecone" and settings.PINECONE_API_KEY:
         from backend.app.services.rag.vector_store import PineconeVectorStore

@@ -1,13 +1,9 @@
 import base64
 import logging
-from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.database import get_db
-from backend.app.models.schemas import (
-    QueryPipelineRequest, QueryPipelineResponse,
-    FlaggedReviewModel, RetrievedChunk
-)
+from backend.app.models.schemas import QueryPipelineRequest, QueryPipelineResponse
 from backend.app.services.nlp.translation_service import translation_service
 from backend.app.services.nlp.sarvam_service import sarvam_service
 from backend.app.services.nlp.whisper_fallback import whisper_service

@@ -1,0 +1,34 @@
+# KisanSahayak extension dashboard — green agricultural theme.
+# Run Streamlit from the dashboard folder so this file is picked up.
+
+[theme]
+base = "light"
+primaryColor = "#15803d"
+backgroundColor = "#f7faf5"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#1f2937"
+font = "sans serif"
+baseRadius = "0.6rem"
+buttonRadius = "0.6rem"
+showWidgetBorder = true
+showSidebarBorder = true
+paddingTop = "1.4rem"
+paddingBottom = "2.5rem"
+linkUnderline = false
+
+[theme.sidebar]
+backgroundColor = "#f0fdf4"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#1f2937"
+borderColor = "#dcfce7"
+primaryColor = "#15803d"
+linkColor = "#15803d"
+paddingTop = "1rem"
+paddingBottom = "1.25rem"
+
+[server]
+headless = true
+runOnSave = true
+
+[browser]
+gatherUsageStats = false

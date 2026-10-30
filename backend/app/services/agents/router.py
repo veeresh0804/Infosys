@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from typing import Dict, Any, Optional
 from backend.app.services.nlp.intent_classifier import intent_classifier
 from backend.app.services.nlp.ner_service import ner_service
@@ -10,6 +11,7 @@ from backend.app.services.agents.pest_control_agent import pest_control_agent
 from backend.app.services.agents.market_price_agent import market_price_agent
 from backend.app.services.agents.weather_agent import weather_agent
 from backend.app.services.agents.scheme_lookup_agent import scheme_lookup_agent
+from backend.app.services.telemetry_service import telemetry_service
 from backend.app.models.schemas import QueryPipelineResponse
 
 logger = logging.getLogger(__name__)
@@ -36,8 +38,10 @@ class AgentRouter:
         farmer_profile: Dict[str, Any],
         answer_language: Optional[str] = None
     ) -> QueryPipelineResponse:
+        start_ts = time.perf_counter()
+
         # 1. Intent classification & Agricultural NER
-        intent, intent_confidence, intent_model = intent_classifier.classify_intent(canonical_query)
+        intent, intent_confidence, intent_model = await intent_classifier.classify_intent_async(canonical_query)
         entities = ner_service.extract_entities(canonical_query)
 
         # 2. Decide target language explicitly (Task 3)
@@ -123,6 +127,23 @@ class AgentRouter:
         # Check if any retrieved chunk is unverified (Task 9)
         has_unverified = any(c.metadata.get("verified") is False for c in retrieved_chunks)
         engine_used = (live_data.get("synthesis_engine") if live_data else None) or intent_model
+
+        # 6. Telemetry pipeline: record this routed query for observability
+        latency_ms = int((time.perf_counter() - start_ts) * 1000)
+        await telemetry_service.record_query_event(
+            session_id=session_id,
+            canonical_query=canonical_query,
+            detected_language=detected_language,
+            intent=intent,
+            intent_confidence=intent_confidence,
+            sub_agent=sub_agent_name,
+            engine_used=engine_used,
+            confidence_score=confidence_score,
+            is_low_confidence=is_low_confidence,
+            is_fallback=is_fallback,
+            chunk_count=len(retrieved_chunks),
+            latency_ms=latency_ms
+        )
 
         return QueryPipelineResponse(
             session_id=session_id,

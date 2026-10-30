@@ -4,7 +4,7 @@ import base64
 import hashlib
 import re
 import httpx
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Tuple
 from backend.app.config import settings
 
 logger = logging.getLogger(__name__)

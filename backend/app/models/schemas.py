@@ -60,6 +60,25 @@ class TTSCacheModel(Base):
     engine = Column(String(32), default="cached")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
+class QueryTelemetryModel(Base):
+    """Per-query telemetry recorded by the Agent Router observability pipeline."""
+    __tablename__ = "query_telemetry"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(64), index=True)
+    canonical_query = Column(Text, nullable=False)
+    detected_language = Column(String(10), default="en")
+    intent = Column(String(64), nullable=False)
+    intent_confidence = Column(Float, default=0.0)
+    sub_agent = Column(String(64), nullable=False)
+    engine_used = Column(String(128), nullable=True)
+    confidence_score = Column(Float, default=0.0)
+    is_low_confidence = Column(Integer, default=0)
+    is_fallback = Column(Integer, default=0)
+    chunk_count = Column(Integer, default=0)
+    latency_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
 # ==============================================================================
 # Pydantic Schemas
 # ==============================================================================

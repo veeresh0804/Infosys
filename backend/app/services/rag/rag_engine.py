@@ -320,6 +320,79 @@ class RAGEngine:
 
         return None, None, None, None, None
 
+    def _parse_intent_json(self, raw_text: str) -> Optional[Tuple[str, float]]:
+        """Parses {"intent": ..., "confidence": ...} and validates against the agri intent list."""
+        try:
+            data = json.loads(raw_text)
+            intent = (data.get("intent") or "").strip()
+            if intent not in ("crop_advisory", "pest_control", "market_prices", "weather", "scheme_lookup"):
+                return None
+            confidence = float(data.get("confidence", 0.6))
+            confidence = round(min(0.85, max(0.40, confidence)), 2)
+            return intent, confidence
+        except Exception:
+            return None
+
+    async def classify_intent_llm(self, canonical_text: str) -> Optional[Tuple[str, float, str]]:
+        """
+        Free-LLM intent fallback for ambiguous farmer queries (docs/FREE_TIER_DEVIATIONS.md §5):
+        rule classifier first; this chain (Gemini -> Groq) disambiguates the uncertain remainder.
+        Returns (intent, confidence, engine_used) or None so the caller keeps the honest rule result.
+        """
+        prompt = (
+            "Classify this Indian farmer query into exactly ONE agricultural intent from this list: "
+            "crop_advisory, pest_control, market_prices, weather, scheme_lookup.\n\n"
+            f"Farmer query: {scrub_pii(canonical_text)}\n\n"
+            'Output ONLY valid JSON: {"intent": "<one intent from the list>", "confidence": <0.0-1.0>}'
+        )
+
+        # 1. Try Gemini free tier
+        if settings.GOOGLE_API_KEY and not settings.GOOGLE_API_KEY.startswith("your_"):
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model}:generateContent?key={settings.GOOGLE_API_KEY}"
+                payload = {
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.0, "maxOutputTokens": 96, "responseMimeType": "application/json"}
+                }
+                async with httpx.AsyncClient(timeout=12.0) as client:
+                    resp = await client.post(url, json=payload)
+                    if resp.status_code == 200:
+                        _check_and_increment_counter("gemini")
+                        parts = resp.json().get("candidates", [{}])[0].get("content", {}).get("parts", [{}])
+                        parsed = self._parse_intent_json(parts[0].get("text", ""))
+                        if parsed:
+                            intent, confidence = parsed
+                            return intent, confidence, f"gemini_{self.gemini_model}_intent_router"
+            except Exception as e:
+                logger.debug(f"Gemini intent classification failed: {e}")
+
+        # 2. Try Groq free tier
+        if settings.GROQ_API_KEY and not settings.GROQ_API_KEY.startswith("your_"):
+            try:
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+                payload = {
+                    "model": self.groq_model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.0,
+                    "max_tokens": 96,
+                    "response_format": {"type": "json_object"}
+                }
+                async with httpx.AsyncClient(timeout=12.0) as client:
+                    resp = await client.post(url, headers=headers, json=payload)
+                    if resp.status_code == 200:
+                        _check_and_increment_counter("groq")
+                        content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                        parsed = self._parse_intent_json(content)
+                        if parsed:
+                            intent, confidence = parsed
+                            return intent, confidence, f"groq_{self.groq_model}_intent_router"
+            except Exception as e:
+                logger.debug(f"Groq intent classification failed: {e}")
+
+        # Honest failure: caller falls back to the rule decision (no fabricated confidence)
+        return None
+
     def _parse_llm_json(self, raw_text: str, target_language: str) -> Tuple[str, str, str, str]:
         """Parses answer_translated, short_answer_translated, answer_canonical, short_answer_canonical."""
         try:

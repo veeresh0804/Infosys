@@ -1,6 +1,5 @@
 import logging
 from typing import List, Tuple, Optional, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.config import settings
 from backend.app.models.schemas import RetrievedChunk, EntityItem, FlaggedReviewModel
 from backend.app.database import AsyncSessionLocal

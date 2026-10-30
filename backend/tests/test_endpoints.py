@@ -1,7 +1,6 @@
 import os
 import io
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
@@ -174,3 +173,82 @@ def test_reindex_protected_behind_admin_token():
     assert data["status"] == "success"
     assert data["documents_ingested"] == 26
     assert data["chunks_created"] == 50
+
+def test_telemetry_pipeline_records_and_summarizes():
+    """docs README: 'Agent Router & telemetry pipeline' - every routed query is recorded
+    and exposed via the /api/telemetry observability endpoints."""
+    res = client.post("/api/rag/query", json={"text": "Will it rain tomorrow in Kolar district?", "language": "en"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["intent"] == "weather"
+    assert data["sub_agent"] == "weather"
+
+    summary = client.get("/api/telemetry/summary").json()
+    assert summary["total_queries"] >= 1, f"Telemetry row was not recorded: {summary}"
+    assert summary["by_intent"].get("weather", 0) >= 1
+    assert summary["by_sub_agent"].get("weather", 0) >= 1
+    assert isinstance(summary["avg_latency_ms"], int)
+    assert summary["avg_latency_ms"] >= 0
+    assert summary["max_latency_ms"] is not None
+    assert isinstance(summary["recent"], list)
+
+    health = client.get("/api/telemetry/health").json()
+    assert health["status"] == "healthy"
+
+def test_intent_classification_chain_short_circuit_and_llm_fallback():
+    """docs/FREE_TIER_DEVIATIONS.md SS5: confident rule decisions short-circuit;
+    ambiguous ones honor ENABLE_HF_LOCAL and the free LLM chain when available."""
+    import asyncio
+
+    # 1. Confident rule match never spends an LLM call
+    intent, conf, model = intent_classifier.classify_intent(
+        "How to control yellow stem borer in paddy rice with chlorantraniliprole?"
+    )
+    assert intent == "pest_control" and conf >= 0.79 and model == "agri_domain_rule_classifier"
+
+    # 2. Ambiguous query falls through to the LLM chain when it is available
+    assert settings.ENABLE_HF_LOCAL is False
+
+    async def fake_llm(text):
+        return "scheme_lookup", 0.72, "gemini_test_intent_router"
+
+    with patch("backend.app.services.rag.rag_engine.rag_engine.classify_intent_llm", side_effect=fake_llm):
+        intent2, conf2, model2 = asyncio.run(intent_classifier.classify_intent_async("my crop issue"))
+    assert intent2 == "scheme_lookup" and abs(conf2 - 0.72) < 1e-9 and model2 == "gemini_test_intent_router"
+
+    # 3. With no LLM available, the honest low-confidence rule decision stays (no fabricated confidence)
+    with patch("backend.app.services.rag.rag_engine.rag_engine.classify_intent_llm", side_effect=lambda t: None):
+        intent3, conf3, model3 = asyncio.run(intent_classifier.classify_intent_async("my crop issue"))
+    assert model3 == "agri_domain_rule_classifier" and conf3 < 0.60
+
+def test_intent_hf_path_is_gated_and_graceful():
+    """ENABLE_HF_LOCAL=true must use the HF zero-shot intent path and degrade
+    gracefully when the model is unavailable - all without downloading real models."""
+    import asyncio
+
+    class FakeHFPipeline:
+        """Stands in for the facebook/bart-large-mnli zero-shot pipeline."""
+        def __call__(self, text, candidate_labels, hypothesis_template=None):
+            assert hypothesis_template == "This farmer query is about {}."
+            return {"labels": ["crop_advisory", "pest_control"], "scores": [0.81, 0.10]}
+
+    async def must_not_be_called(text):
+        raise AssertionError("LLM chain must not be consulted when the HF model resolves")
+
+    async def fake_llm(text):
+        return "weather", 0.68, "gemini_test_intent_router"
+
+    # 1. HF path honors the flag and maps the zero-shot result/prepares an honest confidence
+    with patch.object(settings, "ENABLE_HF_LOCAL", True):
+        with patch.object(intent_classifier, "_hf_pipeline", FakeHFPipeline()):
+            with patch("backend.app.services.rag.rag_engine.rag_engine.classify_intent_llm", side_effect=must_not_be_called):
+                intent, conf, model = asyncio.run(intent_classifier.classify_intent_async("my crop issue"))
+    assert intent == "crop_advisory" and abs(conf - 0.81) < 1e-9 and model == "facebook_bart_large_mnli"
+
+    # 2. HF unavailable (no real transformers model) -> chain degrades to the LLM link, never crashes
+    with patch.object(settings, "ENABLE_HF_LOCAL", True):
+        with patch.dict("sys.modules", {"transformers": None}):
+            with patch.object(intent_classifier, "_hf_pipeline", None):
+                with patch("backend.app.services.rag.rag_engine.rag_engine.classify_intent_llm", side_effect=fake_llm):
+                    intent2, conf2, model2 = asyncio.run(intent_classifier.classify_intent_async("my crop issue"))
+    assert intent2 == "weather" and model2 == "gemini_test_intent_router"

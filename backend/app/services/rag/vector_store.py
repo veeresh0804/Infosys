@@ -226,10 +226,11 @@ class LocalFallbackVectorStore(BaseVectorStore):
         return cls._instance
 
     def _candidate_paths(self) -> List[str]:
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        repo_root = os.path.dirname(backend_dir)
         return [
-            os.path.join(base_dir, "data", "local_vector_index.json"),
-            os.path.join(base_dir, "backend", "data", "local_vector_index.json"),
+            os.path.join(backend_dir, "data", "local_vector_index.json"),
+            os.path.join(repo_root, "data", "local_vector_index.json"),
         ]
 
     def _load_file(self):

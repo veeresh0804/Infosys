@@ -1,6 +1,6 @@
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Header, Security
+from fastapi import APIRouter, HTTPException, Header
 from backend.app.models.schemas import IngestionResult
 from backend.app.config import settings
 from data.ingestion.ingest import run_ingestion

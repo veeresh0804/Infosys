@@ -1,0 +1,6 @@
+# KisanSahayak Streamlit extension dashboard.
+# The dashboard reuses the backend's REST API; the backend venv already
+# contains requests and pandas, so these pins are primarily for Streamlit.
+streamlit>=1.57
+requests>=2.31
+pandas>=2.0

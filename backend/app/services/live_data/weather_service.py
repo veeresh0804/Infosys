@@ -2,7 +2,6 @@ import logging
 import httpx
 from typing import Optional, Dict
 from backend.app.models.schemas import WeatherData
-from backend.app.config import settings
 
 logger = logging.getLogger(__name__)
 

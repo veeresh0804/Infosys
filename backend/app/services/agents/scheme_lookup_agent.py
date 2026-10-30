@@ -1,10 +1,7 @@
-import logging
 from typing import Dict, Any, Tuple, List
 from backend.app.services.live_data.scheme_checker import scheme_checker
 from backend.app.services.rag.vector_store import get_vector_store
 from backend.app.models.schemas import RetrievedChunk
-
-logger = logging.getLogger(__name__)
 
 class SchemeLookupAgent:
     """

@@ -4,7 +4,7 @@ import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from backend.app.models.schemas import SessionModel, SessionUpdate, SessionResponse, FlaggedReviewModel
+from backend.app.models.schemas import SessionModel, SessionUpdate, FlaggedReviewModel
 
 logger = logging.getLogger(__name__)
 

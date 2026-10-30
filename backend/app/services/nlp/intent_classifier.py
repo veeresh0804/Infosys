@@ -1,8 +1,10 @@
 import re
-import json
+import asyncio
 import logging
-from typing import Tuple, List, Dict, Any, Optional
+from typing import Tuple, List, Dict, Optional
+
 from backend.app.config import settings
+from backend.app.services.rag.rag_engine import rag_engine
 
 logger = logging.getLogger(__name__)
 
@@ -59,31 +61,19 @@ INTENT_WEIGHTS: Dict[str, List[Tuple[str, float]]] = {
 class IntentClassifierService:
     """
     Agricultural Intent Classification Service.
-    Implements rule-based keyword weighting with specificity tie-breaking,
-    backed by free LLM JSON fallback when confidence is low or ambiguous,
-    and optional local Hugging Face zero-shot classification.
+    Implements rule-based keyword weighting with specificity tie-breaking
+    and honest, evidence-based confidence scoring.
+
+    Full chain (per docs/FREE_TIER_DEVIATIONS.md §5):
+      1. High-precision domain keyword/regex classifier (default, 0 MB RAM)
+      2. Optional heavy HF zero-shot model `facebook/bart-large-mnli`
+         (guarded behind ENABLE_HF_LOCAL=true; isolated in requirements-local.txt)
+      3. Free LLM chain fallback (Gemini -> Groq) for ambiguous queries
     """
 
     def __init__(self):
-        self.model_name = settings.HF_INTENT_MODEL
-        self._pipeline = None
-        self._hf_available = False
-
-    def _load_hf_pipeline(self):
-        if not settings.ENABLE_HF_LOCAL:
-            return
-        if self._pipeline is not None or self._hf_available:
-            return
-        try:
-            from transformers import pipeline
-            logger.info(f"Loading Hugging Face intent classification pipeline ({self.model_name})...")
-            token = settings.HF_TOKEN.strip() if (settings.HF_TOKEN and settings.HF_TOKEN.strip()) else None
-            self._pipeline = pipeline("zero-shot-classification", model=self.model_name, token=token)
-            self._hf_available = True
-            logger.info("Hugging Face intent pipeline loaded successfully.")
-        except Exception as e:
-            logger.warning(f"Could not load Hugging Face model {self.model_name}: {e}. Utilizing rule classifier.")
-            self._hf_available = False
+        # Lazily-initialized HF zero-shot pipeline; only loaded when ENABLE_HF_LOCAL=true
+        self._hf_pipeline = None
 
     def _compute_rule_scores(self, text_lower: str) -> Dict[str, float]:
         """Calculates cumulative keyword weights per intent."""
@@ -94,6 +84,70 @@ class IntentClassifierService:
                 if matches:
                     scores[intent] += weight * len(matches)
         return scores
+
+    async def classify_intent_async(self, canonical_text: str) -> Tuple[str, float, str]:
+        """
+        Full classification chain for the Agent Router.
+        Returns: (intent, confidence, model_used)
+        """
+        # 1. High-precision domain rule classifier (always applicable, zero-cost)
+        rule_intent, rule_confidence, _ = self.classify_intent(canonical_text)
+        if rule_confidence >= 0.60:
+            return rule_intent, rule_confidence, "agri_domain_rule_classifier"
+
+        # 2. Optional heavy HF zero-shot model (only when ENABLE_HF_LOCAL=true on >2GB RAM hosts)
+        if settings.ENABLE_HF_LOCAL:
+            hf_result = await self._classify_hf_local(canonical_text)
+            if hf_result:
+                return hf_result
+
+        # 3. Free LLM chain fallback for ambiguous queries (Gemini -> Groq)
+        llm_result = await rag_engine.classify_intent_llm(canonical_text)
+        if llm_result:
+            llm_intent, llm_confidence, engine_used = llm_result
+            return llm_intent, llm_confidence, engine_used
+
+        # Honest fallback: keep the rule decision with its honest low confidence
+        return rule_intent, rule_confidence, "agri_domain_rule_classifier"
+
+    async def _classify_hf_local(self, canonical_text: str) -> Optional[Tuple[str, float, str]]:
+        """
+        Zero-shot intent classification with facebook/bart-large-mnli.
+        Heavy: ~1.63 GB on disk and >2 GB RAM at init - therefore guarded behind
+        ENABLE_HF_LOCAL=true and only ever loaded lazily in a worker thread.
+        """
+        try:
+            if self._hf_pipeline is None:
+                def _init_pipeline():
+                    from transformers import pipeline
+                    return pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+                self._hf_pipeline = await asyncio.to_thread(_init_pipeline)
+
+            label_phrases = {
+                "crop_advisory": "general crop advisory and farm management",
+                "pest_control": "pest or disease control on crops",
+                "market_prices": "market prices for crops in the mandi",
+                "weather": "weather and rainfall forecast",
+                "scheme_lookup": "government scheme eligibility, subsidy or insurance"
+            }
+
+            def _classify():
+                return self._hf_pipeline(
+                    canonical_text,
+                    candidate_labels=list(label_phrases.keys()),
+                    hypothesis_template="This farmer query is about {}."
+                )
+
+            result = await asyncio.to_thread(_classify)
+            top_intent = result["labels"][0]
+            if top_intent not in INTENT_CANDIDATES:
+                return None
+            confidence = round(min(0.95, max(0.50, float(result["scores"][0]))), 2)
+            return top_intent, confidence, "facebook_bart_large_mnli"
+        except Exception as e:
+            logger.warning(f"HF intent model unavailable (falling back to rule/LLM chain): {e}")
+            self._hf_pipeline = None
+            return None
 
     def classify_intent(self, canonical_text: str) -> Tuple[str, float, str]:
         """
